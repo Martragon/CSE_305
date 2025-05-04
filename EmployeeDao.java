@@ -246,6 +246,7 @@ public class EmployeeDao {
 					Employee employee = new Employee();
 					
 					employee.setSsn(rs.getString("SSN"));
+					employee.setId(rs.getString("SSN"));
 					employee.setFirstName(rs.getString("FirstName"));
 					employee.setLastName(rs.getString("LastName"));
 					employee.setEmail(rs.getString("Email"));
@@ -288,7 +289,9 @@ public class EmployeeDao {
         	// while there are rows to be read, keep on creating the employee object and add it to the list
             while (rs.next()) {
                 Employee employee = new Employee();
+                
                 employee.setSsn(rs.getString("SSN"));
+                employee.setId(rs.getString("SSN"));
                 employee.setFirstName(rs.getString("FirstName"));
                 employee.setLastName(rs.getString("LastName"));
                 employee.setEmail(rs.getString("Email"));
@@ -338,6 +341,7 @@ public class EmployeeDao {
 					Employee employee = new Employee();
 					
 					employee.setSsn(rs.getString("SSN"));
+					employee.setId(rs.getString("SSN"));
 					employee.setFirstName(rs.getString("FirstName"));
 					employee.setLastName(rs.getString("LastName"));
 					employee.setEmail(rs.getString("Email"));
