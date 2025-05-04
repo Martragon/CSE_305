@@ -21,7 +21,7 @@ public class CustomerDao {
         location.setState("NY");
 
         Customer customer = new Customer();
-        customer.setId("2");
+        customer.setClientId("2");
         customer.setSsn("111111111");
         customer.setAddress("321 Success Street");
         customer.setLastName("Lu");
@@ -51,7 +51,7 @@ public class CustomerDao {
 	 * @param String searchKeyword
 	 * @return ArrayList<Customer> object
 	 */
-	public List<Customer> getCustomers(String searchKeyword) {
+	public List<Customer> getCustomers() {
 		/*
 		 * This method fetches one or more customers based on the searchKeyword and returns it as an ArrayList
 		 *
@@ -65,20 +65,20 @@ public class CustomerDao {
 	                 "c.customerid, c.rating, c.cardnumber " +
 	                 "FROM customer c " +
 	                 "JOIN person p ON c.ssn = p.ssn " +
-	                 "WHERE p.email LIKE ?";
+	                 "";
 
 	    try (Connection conn = DatabaseConnection.getConnection();
 	         PreparedStatement ps = conn.prepareStatement(sql)) {
 
-	        ps.setString(1, "%" + searchKeyword + "%");
 	        ResultSet rs = ps.executeQuery();
 
 	        while (rs.next()) {
+		        
 	            Customer customer = new Customer();
 	            Location location = new Location();
 
+	            customer.setClientId(rs.getString("customerid"));
 	            customer.setSsn(rs.getString("ssn"));
-	            customer.setId(rs.getString("customerid"));
 	            customer.setFirstName(rs.getString("firstname"));
 	            customer.setLastName(rs.getString("lastname"));
 	            customer.setEmail(rs.getString("email"));
@@ -99,7 +99,63 @@ public class CustomerDao {
 	        e.printStackTrace();
 	    }
 
-	    return getDummyCustomerList();
+	    return customers;
+	}    
+	
+	/**
+	 * @param String searchKeyword
+	 * @return ArrayList<Customer> object
+	 */
+	public List<Customer> getCustomers(String searchKeyword) {
+		/*
+		 * This method fetches one or more customers based on the searchKeyword and returns it as an ArrayList
+		 *
+		 * The students code to fetch data from the database based on searchKeyword will be written here
+		 * Each record is required to be encapsulated as a "Customer" class object and added to the "customers" List
+		 */
+	    List<Customer> customers = new ArrayList<>();
+
+	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
+	                 "p.address, p.city, p.state, p.zipcode, p.telephone, " +
+	                 "c.customerid, c.rating, c.cardnumber " +
+	                 "FROM customer c " +
+	                 "JOIN person p ON c.ssn = p.ssn " +
+	                 "WHERE p.email LIKE %?%";
+
+	    try (Connection conn = DatabaseConnection.getConnection();
+	         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+	        ps.setString(1, searchKeyword);
+	        ResultSet rs = ps.executeQuery();
+
+	        while (rs.next()) {
+		        
+	            Customer customer = new Customer();
+	            Location location = new Location();
+	            
+	            customer.setClientId(rs.getString("customerid"));
+	            customer.setSsn(rs.getString("ssn"));
+	            customer.setFirstName(rs.getString("firstname"));
+	            customer.setLastName(rs.getString("lastname"));
+	            customer.setEmail(rs.getString("email"));
+	            customer.setAddress(rs.getString("address"));
+	            customer.setTelephone(rs.getString("telephone"));
+	            customer.setCreditCard(rs.getString("cardnumber"));
+	            customer.setRating(rs.getInt("rating"));
+
+	            location.setCity(rs.getString("city"));
+	            location.setState(rs.getString("state"));
+	            location.setZipCode(rs.getInt("zipcode"));
+
+	            customer.setLocation(location);
+	            customers.add(customer);
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+
+	    return customers;
 	}
 
 
@@ -128,7 +184,7 @@ public class CustomerDao {
 				Location location = new Location();
 
 				customer.setSsn(rs.getString("ssn"));
-				customer.setId(rs.getString("customerid"));
+				customer.setClientId(rs.getString("customerid"));
 				customer.setFirstName(rs.getString("firstname"));
 				customer.setLastName(rs.getString("lastname"));
 				customer.setEmail(rs.getString("email"));
@@ -160,47 +216,48 @@ public class CustomerDao {
 		 * The students code to fetch data from the database will be written here
 		 * The customer record is required to be encapsulated as a "Customer" class object
 		 */
-		String sql = "SELECT * " +
-				"FROM customer c JOIN person p ON c.ssn = p.ssn " +
-				"WHERE c.customerid = ?";
+	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
+	                 "p.address, p.city, p.state, p.zipcode, p.telephone, " +
+	                 "c.customerid, c.rating, c.cardnumber " +
+	                 "FROM customer c " +
+	                 "JOIN person p ON c.ssn = p.ssn " +
+	                 "WHERE c.customerid = ?";
 
-		try (Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement ps = conn.prepareStatement(sql)) {
-	
-			ps.setString(1, customerID);
-			ResultSet rs = ps.executeQuery();
-	
-			if (rs.next()) {
-				Customer customer = new Customer();
-				Location location = new Location();
+	    try (Connection conn = DatabaseConnection.getConnection();
+	         PreparedStatement ps = conn.prepareStatement(sql)) {
 
-				customer.setSsn(rs.getString("ssn"));
-				customer.setId(rs.getString("customerid"));
-				customer.setFirstName(rs.getString("firstname"));
-				customer.setLastName(rs.getString("lastname"));
-				customer.setEmail(rs.getString("email"));
-				customer.setAddress(rs.getString("address"));
-				customer.setTelephone(rs.getString("telephone"));
-				customer.setCreditCard(rs.getString("cardnumber"));
-				customer.setRating(rs.getInt("rating"));
-	
-				location.setCity(rs.getString("city"));
-				location.setState(rs.getString("state"));
-				location.setZipCode(rs.getInt("zipcode"));
-	
-				customer.setLocation(location);
-				
-				return customer;
-			} else {
-				return null;
-			}
-	
-		} catch (SQLException e) {
-			e.printStackTrace();
-			return null;
-		}
+	        ps.setString(1, customerID);
+	        ResultSet rs = ps.executeQuery();
+
+	        if (rs.next()) {
+	            Customer customer = new Customer();
+	            Location location = new Location();
+	            
+	            customer.setSsn(rs.getString("ssn"));
+	            customer.setId(rs.getString("customerid"));
+	            customer.setFirstName(rs.getString("firstname"));
+	            customer.setLastName(rs.getString("lastname"));
+	            customer.setEmail(rs.getString("email"));
+	            customer.setAddress(rs.getString("address"));
+	            customer.setTelephone(rs.getString("telephone"));
+	            customer.setCreditCard(rs.getString("cardnumber"));
+	            customer.setRating(rs.getInt("rating"));
+
+	            location.setCity(rs.getString("city"));
+	            location.setState(rs.getString("state"));
+	            location.setZipCode(rs.getInt("zipcode"));
+
+	            customer.setLocation(location);
+	            return customer;
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+
+	    return null;
 	}
-	
+
 	
 	public String deleteCustomer(String customerID) {
 		/*
@@ -291,8 +348,8 @@ public class CustomerDao {
 		String checkPersonSQL = "SELECT ssn FROM person WHERE ssn = ?";
 	    String insertPersonSQL = "INSERT INTO person (SSN, FirstName, LastName, Email, Address, City, State, Zipcode, Telephone) " +
 	                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-	    String insertCustomerSQL = "INSERT INTO customer (CustomerID, SSN, Rating, CardNumber) " +
-	                               "VALUES (?, ?, ?, ?)";
+	    String insertCustomerSQL = "INSERT INTO customer (SSN, Rating, CardNumber) " +
+	                               "VALUES (?, ?, ?)";
 
 	    try (Connection conn = DatabaseConnection.getConnection()) {
 	        conn.setAutoCommit(false); // Start transaction
@@ -323,9 +380,9 @@ public class CustomerDao {
 	            }
 
 	            // 3. Insert into customer (assume 1 customer per person)
-	            insertCustomerStmt.setString(2, customer.getSsn());
-	            insertCustomerStmt.setInt(3, customer.getRating());
-	            insertCustomerStmt.setString(4, customer.getCreditCard());
+	            insertCustomerStmt.setString(1, customer.getSsn());
+	            insertCustomerStmt.setInt(2, customer.getRating());
+	            insertCustomerStmt.setString(3, customer.getCreditCard());
 	            insertCustomerStmt.executeUpdate();
 
 	            conn.commit();
@@ -376,7 +433,7 @@ public class CustomerDao {
 				// Update customer
 				customerStmt.setString(1, customer.getCreditCard());
 				customerStmt.setInt(2, customer.getRating());
-				customerStmt.setString(3, customer.getId()); // customerId
+				customerStmt.setString(3, customer.getClientId()); // customerId
 				int customerRows = customerStmt.executeUpdate();
 
 				if (personRows > 0 && customerRows > 0) {
@@ -462,7 +519,7 @@ public class CustomerDao {
                 Location location = new Location();
 
                 customer.setSsn(rs.getString("ssn"));
-                customer.setId(rs.getString("customerid"));
+                customer.setClientId(rs.getString("customerid"));
                 customer.setFirstName(rs.getString("firstname"));
                 customer.setLastName(rs.getString("lastname"));
                 customer.setEmail(rs.getString("email"));
@@ -489,9 +546,9 @@ public class CustomerDao {
     public static void main(String[] args) {
         
         CustomerDao dao = new CustomerDao();
-//        Customer test = dao.getDummyCustomer();
-        System.out.println(dao.getCustomers("").toString());
-        System.out.println(dao.getDummyCustomerList().toString());
+//        Customer test = dao.getCustomer("5");
+        System.out.println(dao.getCustomer("1"));
+        System.out.println(dao.getDummyCustomer());
 
     }
 }
