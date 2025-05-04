@@ -20,7 +20,7 @@ public class CustomerDao {
     public static void main(String[] args) {
         
         CustomerDao dao = new CustomerDao();
-        dao.addCustomer(dao.getDummyCustomer());
+        System.out.println(dao.getCustomer("111111111"));
 
     }
     
@@ -238,11 +238,12 @@ public class CustomerDao {
 		 * The students code to fetch data from the database will be written here
 		 * The customer record is required to be encapsulated as a "Customer" class object
 		 */
-	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
-	                 "p.address, p.city, p.state, p.zipcode, p.telephone, " +
-	                 "c.customerid, c.rating, c.cardnumber " +
+	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
+	                 "c.customerid, c.rating, c.cardnumber, " +
+	                 "a.accountid, a.accountcreated " +
 	                 "FROM customer c " +
-	                 "JOIN person p ON c.ssn = p.ssn " +
+	                 "JOIN person p ON c.customerid = p.ssn " +
+	                 "JOIN account a ON c.customerid = a.customerid " +
 	                 "WHERE c.customerid = ?";
 
 	    try (Connection conn = DatabaseConnection.getConnection();
@@ -254,22 +255,34 @@ public class CustomerDao {
 	        if (rs.next()) {
 	            Customer customer = new Customer();
 	            Location location = new Location();
-	            
+
+	            // Personal Information
 	            customer.setSsn(rs.getString("ssn"));
-	            customer.setId(rs.getString("customerid"));
 	            customer.setFirstName(rs.getString("firstname"));
+	            customer.setId(rs.getString("ssn"));
 	            customer.setLastName(rs.getString("lastname"));
 	            customer.setEmail(rs.getString("email"));
 	            customer.setAddress(rs.getString("address"));
 	            customer.setTelephone(rs.getString("telephone"));
+
+	            // Customer Info
+	            customer.setClientId(rs.getString("customerid"));
 	            customer.setCreditCard(rs.getString("cardnumber"));
 	            customer.setRating(rs.getInt("rating"));
 
+	            // Location
 	            location.setCity(rs.getString("city"));
 	            location.setState(rs.getString("state"));
 	            location.setZipCode(rs.getInt("zipcode"));
-
 	            customer.setLocation(location);
+
+	            // Account Info
+	            customer.setAccountNumber(rs.getInt("accountid"));
+	            Date accountCreated = rs.getDate("accountcreated");
+	            if (accountCreated != null) {
+	                customer.setAccountCreationTime(new SimpleDateFormat("yyyy-MM-dd").format(accountCreated));
+	            }
+
 	            return customer;
 	        }
 
@@ -279,6 +292,7 @@ public class CustomerDao {
 
 	    return null;
 	}
+
 
 	
 	public String deleteCustomer(String customerID) {
@@ -359,14 +373,14 @@ public class CustomerDao {
 	}
 
 
+	/*
+	 * All the values of the add customer form are encapsulated in the customer object.
+	 * These can be accessed by getter methods (see Customer class in model package).
+	 * e.g. firstName can be accessed by customer.getFirstName() method.
+	 * The sample code returns "success" by default.
+	 * You need to handle the database insertion of the customer details and return "success" or "failure" based on result of the database insertion.
+	 */
 	public String addCustomer(Customer customer) {
-		/*
-		 * All the values of the add customer form are encapsulated in the customer object.
-		 * These can be accessed by getter methods (see Customer class in model package).
-		 * e.g. firstName can be accessed by customer.getFirstName() method.
-		 * The sample code returns "success" by default.
-		 * You need to handle the database insertion of the customer details and return "success" or "failure" based on result of the database insertion.
-		 */
 		String checkPersonSQL = "SELECT ssn FROM person WHERE ssn = ?";
 	    String insertPersonSQL = "INSERT INTO person (SSN, FirstName, LastName, Email, Address, City, State, Zipcode, Telephone) " +
 	                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
@@ -384,13 +398,13 @@ public class CustomerDao {
 	            PreparedStatement insertCustomerStmt = conn.prepareStatement(insertCustomerSQL);
 	            PreparedStatement insertAccountStmt = conn.prepareStatement(insertAccountSQL)
 	        ) {
-	            // 1. Check if person already exists
+	            // Check if person already exists
 	            checkPersonStmt.setString(1, customer.getSsn());
 	            ResultSet rs = checkPersonStmt.executeQuery();
 	            boolean personExists = rs.next();
 	            rs.close();
 
-	            // 2. Insert person only if not already in DB
+	            // Insert person only if not already in DB
 	            if (!personExists) {
 	                insertPersonStmt.setString(1, customer.getSsn());
 	                insertPersonStmt.setString(2, customer.getFirstName());
@@ -404,15 +418,17 @@ public class CustomerDao {
 	                insertPersonStmt.executeUpdate();
 	            }
 
-	            // 3. Insert into customer (assume 1 customer per person)
-	            insertCustomerStmt.setString(1, customer.getClientId());
+	            // Insert into customer (assume 1 customer per person)
+	            insertCustomerStmt.setString(1, customer.getId());
 	            insertCustomerStmt.setInt(2, customer.getRating());
 	            insertCustomerStmt.setString(3, customer.getCreditCard());
 	            insertCustomerStmt.executeUpdate();
 
-	            insertAccountStmt.setString(1, customer.getClientId());
-	            insertAccountStmt.setString(2, customer.getAccountCreationTime());
-	            insertCustomerStmt.executeUpdate();
+	            // Insert into Account
+	            insertAccountStmt.setString(1, customer.getId());
+	            java.sql.Date sqlDate = new java.sql.Date(new java.util.Date().getTime());
+	            insertAccountStmt.setDate(2, sqlDate);
+	            insertAccountStmt.executeUpdate();
 
 	            conn.commit();
 	            return "success";
