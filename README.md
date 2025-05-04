@@ -4,3 +4,4 @@
 * In /src/main/java/resources/EditCustomerController.java changed customerID to customerId in line 39
 * In /src/main/java/resources/DeleteCustomerController.java changed customerID to customerId in line 38
 * Added setters and getters into /src/main/java/model/Account.java
+* In /src/main/java/resources/GetCustomersController.java removed searchKeyword from method dao.getCustomers() in line 45
