@@ -144,7 +144,7 @@ public class CustomerDao {
 	                 "p.address, p.city, p.state, p.zipcode, p.telephone, " +
 	                 "c.customerid, c.rating, c.cardnumber " +
 	                 "FROM customer c " +
-	                 "JOIN person p ON c.ssn = p.ssn " +
+	                 "JOIN person p ON c.customerid = p.ssn " +
 	                 "WHERE p.email LIKE %?%";
 
 	    try (Connection conn = DatabaseConnection.getConnection();
@@ -194,7 +194,7 @@ public class CustomerDao {
 				"c.customerid, c.rating, c.cardnumber, " +
 				"SUM(b.price * b.quantity) AS total_revenue " +
 				"FROM customer c " +
-				"JOIN person p ON c.ssn = p.ssn " +
+				"JOIN person p ON c.customerid = p.ssn " +
 				"JOIN buy b ON c.customerid = b.customerid " +
 				"GROUP BY c.customerid " +
 				"ORDER BY total_revenue DESC " +
@@ -241,6 +241,8 @@ public class CustomerDao {
 		 * The students code to fetch data from the database will be written here
 		 * The customer record is required to be encapsulated as a "Customer" class object
 		 */
+		System.out.println("AAA");
+		System.out.println(customerID);
 	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
 	                 "c.customerid, c.rating, c.cardnumber, " +
 	                 "a.accountid, a.accountcreated " +
@@ -354,7 +356,7 @@ public class CustomerDao {
 		 * The Customer's ID is required to be returned as a String
 		 */
 	    String sql = "SELECT c.customerid " +
-	                 "FROM customer c JOIN person p ON c.ssn = p.ssn " +
+	                 "FROM customer c JOIN person p ON c.customerid = p.ssn " +
 	                 "WHERE p.email = ?";
 
 	    try (Connection conn = DatabaseConnection.getConnection();
@@ -553,7 +555,7 @@ public class CustomerDao {
                      "p.address, p.city, p.state, p.zipcode, p.telephone, " +
                      "c.customerid, c.rating, c.cardnumber " +
                      "FROM customer c " +
-                     "JOIN person p ON c.ssn = p.ssn";
+                     "JOIN person p ON c.customerid = p.ssn";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
