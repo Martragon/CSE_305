@@ -242,7 +242,7 @@ public class EmployeeDao {
 		 */
 
 		List<Employee> employees = new ArrayList<Employee>();
-		String sql = "SELECT p.SSN, p.FirstName, p.LastName,  p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE email LIKE %?%";
+		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE email LIKE %?%";
 		
 		// Connect to the database and prepare the statement
 		try (Connection conn = DatabaseConnection.getConnection();
@@ -263,19 +263,19 @@ public class EmployeeDao {
 					employee.setAddress(rs.getString("Address"));
 					
 					Location loc = new Location();
-                    loc.setCity(rs.getString("City"));
-                    loc.setState(rs.getString("State"));
-                    loc.setZipCode(rs.getInt("ZipCode"));
-                    employee.setLocation(loc);
-                    
-                    employee.setTelephone(rs.getString("Telephone"));
-                    employee.setEmployeeID(String.valueOf(rs.getInt("EmployeeID")));
-                    employee.setStartDate(rs.getDate("StartDate").toString());
-                    employee.setHourlyRate(rs.getFloat("HourlyRate"));
+					loc.setCity(rs.getString("City"));
+					loc.setState(rs.getString("State"));
+					loc.setZipCode(rs.getInt("ZipCode"));
+					employee.setLocation(loc);
+					
+					employee.setTelephone(rs.getString("Telephone"));
+					employee.setEmployeeID(String.valueOf(rs.getInt("EmployeeID")));
+					employee.setStartDate(rs.getDate("StartDate").toString());
+					employee.setHourlyRate(rs.getFloat("HourlyRate"));
 					employee.setLevel(rs.getString("Level"));
 					
 					employees.add(employee);
-				}
+				}	
 			}
 		} catch (Exception e) {
 			System.out.println(e);
@@ -334,7 +334,7 @@ public class EmployeeDao {
 		 * The record is required to be encapsulated as a "Employee" class object
 		 */
 
-		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE e.EmployeeID = ?";
+		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE e.EmployeeID = ?";
 		
 		// Connect to the database and prepare the statement
 		try (Connection conn = DatabaseConnection.getConnection();
