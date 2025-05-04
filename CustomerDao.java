@@ -153,15 +153,51 @@ public class CustomerDao {
 	}
 
 	public Customer getCustomer(String customerID) {
-
 		/*
 		 * This method fetches the customer details and returns it
 		 * customerID, which is the Customer's ID who's details have to be fetched, is given as method parameter
 		 * The students code to fetch data from the database will be written here
 		 * The customer record is required to be encapsulated as a "Customer" class object
 		 */
-		
-		return getDummyCustomer();
+		String sql = "SELECT * " +
+				"FROM customer c JOIN person p ON c.ssn = p.ssn " +
+				"WHERE c.customerid = ?";
+
+		try (Connection conn = DatabaseConnection.getConnection();
+				PreparedStatement ps = conn.prepareStatement(sql)) {
+	
+			ps.setString(1, customerID);
+			ResultSet rs = ps.executeQuery();
+	
+			if (rs.next()) {
+				Customer customer = new Customer();
+				Location location = new Location();
+
+				customer.setSsn(rs.getString("ssn"));
+				customer.setId(rs.getString("customerid"));
+				customer.setFirstName(rs.getString("firstname"));
+				customer.setLastName(rs.getString("lastname"));
+				customer.setEmail(rs.getString("email"));
+				customer.setAddress(rs.getString("address"));
+				customer.setTelephone(rs.getString("telephone"));
+				customer.setCreditCard(rs.getString("cardnumber"));
+				customer.setRating(rs.getInt("rating"));
+	
+				location.setCity(rs.getString("city"));
+				location.setState(rs.getString("state"));
+				location.setZipCode(rs.getInt("zipcode"));
+	
+				customer.setLocation(location);
+				
+				return customer;
+			} else {
+				return null;
+			}
+	
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return null;
+		}
 	}
 	
 	public String deleteCustomer(String customerID) {
@@ -280,11 +316,52 @@ public class CustomerDao {
 		 * The sample code returns "success" by default.
 		 * You need to handle the database update and return "success" or "failure" based on result of the database update.
 		 */
-		
-		/*Sample data begins*/
-		return "success";
-		/*Sample data ends*/
+		String updatePersonSQL = "UPDATE person SET firstname = ?, lastname = ?, address = ?, city = ?, state = ?, zipcode = ?, telephone = ?, email = ? WHERE ssn = ?";
+		String updateCustomerSQL = "UPDATE customer SET cardnumber = ?, rating = ? WHERE customerid = ?";
 
+		try (Connection conn = DatabaseConnection.getConnection()) {
+			conn.setAutoCommit(false); // Start transaction
+
+			try (
+					PreparedStatement personStmt = conn.prepareStatement(updatePersonSQL);
+					PreparedStatement customerStmt = conn.prepareStatement(updateCustomerSQL)
+				) {
+				// Update person
+				personStmt.setString(1, customer.getFirstName());
+				personStmt.setString(2, customer.getLastName());
+				personStmt.setString(3, customer.getAddress());
+				personStmt.setString(4, customer.getLocation().getCity());
+				personStmt.setString(5, customer.getLocation().getState());
+				personStmt.setInt(6, customer.getLocation().getZipCode());
+				personStmt.setString(7, customer.getTelephone());
+				personStmt.setString(8, customer.getEmail());
+				personStmt.setString(9, customer.getSsn());
+				int personRows = personStmt.executeUpdate();
+
+				// Update customer
+				customerStmt.setString(1, customer.getCreditCard());
+				customerStmt.setInt(2, customer.getRating());
+				customerStmt.setString(3, customer.getId()); // customerId
+				int customerRows = customerStmt.executeUpdate();
+
+				if (personRows > 0 && customerRows > 0) {
+					conn.commit();
+					return "success";
+				} else {
+					conn.rollback();
+					return "failure";
+				}
+
+			} catch (SQLException e) {
+				conn.rollback();
+				e.printStackTrace();
+				return "failure";
+			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return "failure";
+		}
 	}
 
     public List<Customer> getCustomerMailingList() {
@@ -339,7 +416,8 @@ public class CustomerDao {
     public static void main(String[] args) {
         
         CustomerDao dao = new CustomerDao();
-        System.out.println(dao.getCustomers(""));
+        Customer test = dao.getCustomer("1");
+        System.out.println(test.getFirstName());
 
     }
 }
