@@ -231,7 +231,7 @@ public class EmployeeDao {
 		 */
 
 		List<Employee> employees = new ArrayList<Employee>();
-		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.EmployeeID WHERE email LIKE %?%";
+		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.EmployeeID WHERE p.Email LIKE %?%";
 		
 		// Connect to the database and prepare the statement
 		try (Connection conn = DatabaseConnection.getConnection();
@@ -313,6 +313,7 @@ public class EmployeeDao {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            return null;
         }
         
         return list;
