@@ -15,11 +15,6 @@ public class EmployeeDao {
 	/*
 	 * This class handles all the database operations related to the employee table
 	 */
-	
-  public static void main(String[] args) {
-	  EmployeeDao e = new EmployeeDao();
-      System.out.println(e.addEmployee(e.getDummyEmployee()));
-  }
 
     public Employee getDummyEmployee()
     {
@@ -71,7 +66,7 @@ public class EmployeeDao {
 		
 		String sqlCheckPerson = "SELECT 1 FROM Person WHERE SSN = ?";
         String sqlPerson = "INSERT INTO Person (SSN, FirstName, LastName, Email, Address, City, State, ZipCode, Telephone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        String sqlEmployee = "INSERT INTO Employee (SSN, StartDate, HourlyRate, Level) VALUES (?, ?, ?, ?)";
+        String sqlEmployee = "INSERT INTO Employee (EmployeeID, StartDate, HourlyRate, Level) VALUES (?, ?, ?, ?)";
         
         // Connect to the database
         try (Connection conn = DatabaseConnection.getConnection()) {
@@ -114,20 +109,14 @@ public class EmployeeDao {
                 }
             }
             
-            // Insert into Employee table, and get the auto generated key the database generated
-            try (PreparedStatement psEmp = conn.prepareStatement(sqlEmployee, Statement.RETURN_GENERATED_KEYS)) {
+            // Insert into Employee table
+            try (PreparedStatement psEmp = conn.prepareStatement(sqlEmployee)) {
+            	// The EmployeeID is equal to the SSN
                 psEmp.setInt(1, ssn);
                 psEmp.setDate(2, Date.valueOf(employee.getStartDate()));
                 psEmp.setFloat(3, employee.getHourlyRate());
                 psEmp.setString(4, employee.getLevel());
                 psEmp.executeUpdate();
-                
-                // Get the generated key from the database and set the ID to that number
-                try (ResultSet rs = psEmp.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        employee.setEmployeeID(String.valueOf(rs.getInt(1)));
-                    }
-                }
             }
             
             // Have to manually commit the sql statements
@@ -164,8 +153,8 @@ public class EmployeeDao {
 				// Update the information
 				psPerson.setString(1, employee.getFirstName());
 				psPerson.setString(2, employee.getLastName());
-				psPerson.setString(3, employee.getEmail());
-				psPerson.setString(4, employee.getAddress());
+				psPerson.setString(3, employee.getAddress());
+				psPerson.setString(4, employee.getEmail());
 				
 				Location loc = employee.getLocation();
 				psPerson.setString(5, loc.getCity());
@@ -213,7 +202,7 @@ public class EmployeeDao {
 		
 		// Connect to the Database and prepare the sql statement
 		try (Connection conn = DatabaseConnection.getConnection(); 
-			PreparedStatement ps = conn.prepareStatement(sql)) {
+				PreparedStatement ps = conn.prepareStatement(sql)) {
 			
 			// Where EmployeeID = ?
             ps.setInt(1, Integer.parseInt(employeeID));
@@ -242,7 +231,7 @@ public class EmployeeDao {
 		 */
 
 		List<Employee> employees = new ArrayList<Employee>();
-		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE email LIKE %?%";
+		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.EmployeeID WHERE email LIKE %?%";
 		
 		// Connect to the database and prepare the statement
 		try (Connection conn = DatabaseConnection.getConnection();
@@ -286,7 +275,7 @@ public class EmployeeDao {
 	
 	// returns all employees
 	public List<Employee> getEmployees() {
-        String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN";
+        String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.EmployeeID";
         
         List<Employee> list = new ArrayList<>();
         
@@ -334,7 +323,7 @@ public class EmployeeDao {
 		 * The record is required to be encapsulated as a "Employee" class object
 		 */
 
-		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE e.EmployeeID = ?";
+		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.EmployeeID, e.StartDate, e.HourlyRate, e.Level FROM Person p JOIN Employee e ON p.SSN = e.EmployeeID WHERE e.EmployeeID = ?";
 		
 		// Connect to the database and prepare the statement
 		try (Connection conn = DatabaseConnection.getConnection();
@@ -355,15 +344,15 @@ public class EmployeeDao {
 					employee.setAddress(rs.getString("Address"));
 					
 					Location loc = new Location();
-                    loc.setCity(rs.getString("City"));
-                    loc.setState(rs.getString("State"));
-                    loc.setZipCode(rs.getInt("ZipCode"));
-                    employee.setLocation(loc);
-                    
-                    employee.setTelephone(rs.getString("Telephone"));
-                    employee.setEmployeeID(String.valueOf(rs.getInt("EmployeeID")));
-                    employee.setStartDate(rs.getDate("StartDate").toString());
-                    employee.setHourlyRate(rs.getFloat("HourlyRate"));
+					loc.setCity(rs.getString("City"));
+					loc.setState(rs.getString("State"));
+					loc.setZipCode(rs.getInt("ZipCode"));
+					employee.setLocation(loc);
+					
+					employee.setTelephone(rs.getString("Telephone"));
+					employee.setEmployeeID(String.valueOf(rs.getInt("EmployeeID")));
+					employee.setStartDate(rs.getDate("StartDate").toString());
+					employee.setHourlyRate(rs.getFloat("HourlyRate"));
 					employee.setLevel(rs.getString("Level"));
 					
 					return employee;
@@ -394,7 +383,7 @@ public class EmployeeDao {
 		 * The Employee ID is required to be returned as a String
 		 */
 
-		String sql = "SELECT e.EmployeeID FROM Person p JOIN Employee e ON p.SSN = e.SSN WHERE p.Email = ?";
+		String sql = "SELECT e.EmployeeID FROM Person p JOIN Employee e ON p.SSN = e.EmployeeID WHERE p.Email = ?";
 		
 		// Connect to the database and prepare the statement
 		try (Connection conn = DatabaseConnection.getConnection();
