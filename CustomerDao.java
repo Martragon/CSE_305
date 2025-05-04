@@ -126,40 +126,87 @@ public class CustomerDao {
         return customers;
     }
 
-	
 	/**
-	 * @param String searchKeyword
-	 * @return ArrayList<Customer> object
+	 * TODO See if it works
+	 * 
+	 * @param searchKeyword
+	 * @return
 	 */
-	public List<Customer> getCustomers(String searchKeyword) {
-		/*
-		 * This method fetches one or more customers based on the searchKeyword and returns it as an ArrayList
-		 *
-		 * The students code to fetch data from the database based on searchKeyword will be written here
-		 * Each record is required to be encapsulated as a "Customer" class object and added to the "customers" List
-		 */
-	    List<Customer> customers = new ArrayList<>();
+    public List<Customer> getCustomers(String searchKeyword) {
+        List<Customer> customers = new ArrayList<>();
 
-	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
-	                 "p.address, p.city, p.state, p.zipcode, p.telephone, " +
-	                 "c.customerid, c.rating, c.cardnumber " +
+        String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
+                     "p.address, p.city, p.state, p.zipcode, p.telephone, " +
+                     "c.customerid, c.rating, c.cardnumber " +
+                     "FROM customer c " +
+                     "JOIN person p ON c.customerid = p.ssn " +
+                     "WHERE p.email LIKE ?";  // ✅ FIXED: Move % inside setString()
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, "%" + searchKeyword + "%");  // ✅ FIXED: LIKE '%keyword%'
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Customer customer = new Customer();
+                    Location location = new Location();
+
+                    customer.setClientId(rs.getString("customerid"));
+                    customer.setSsn(rs.getString("ssn"));
+                    customer.setFirstName(rs.getString("firstname"));
+                    customer.setLastName(rs.getString("lastname"));
+                    customer.setEmail(rs.getString("email"));
+                    customer.setAddress(rs.getString("address"));
+                    customer.setTelephone(rs.getString("telephone"));
+                    customer.setCreditCard(rs.getString("cardnumber"));
+                    customer.setRating(rs.getInt("rating"));
+
+                    location.setCity(rs.getString("city"));
+                    location.setState(rs.getString("state"));
+                    location.setZipCode(rs.getInt("zipcode"));
+
+                    customer.setLocation(location);
+                    customers.add(customer);
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return customers;
+    }
+
+
+	/*
+	 * TODO See if it works
+	 * This method fetches the customer who generated the highest total revenue and returns it
+	 * The students code to fetch data from the database will be written here
+	 * The customer record is required to be encapsulated as a "Customer" class object
+	 */
+	public Customer getHighestRevenueCustomer() {
+	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
+	                 "c.customerid, c.rating, c.cardnumber, " +
+	                 "SUM(b.price * b.quantity) AS total_revenue " +
 	                 "FROM customer c " +
-	                 "JOIN person p ON c.customerid = p.ssn " +
-	                 "WHERE p.email LIKE %?%";
+	                 "JOIN person p ON c.customerid = p.ssn " +  // Link using p.ssn = c.customerid
+	                 "JOIN buy b ON c.customerid = b.customerid " +
+	                 "GROUP BY p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
+	                 "c.customerid, c.rating, c.cardnumber " + // Must group by all selected columns (MySQL strict mode)
+	                 "ORDER BY total_revenue DESC " +
+	                 "LIMIT 1";
 
 	    try (Connection conn = DatabaseConnection.getConnection();
-	         PreparedStatement ps = conn.prepareStatement(sql)) {
+	         PreparedStatement ps = conn.prepareStatement(sql);
+	         ResultSet rs = ps.executeQuery()) {
 
-	        ps.setString(1, searchKeyword);
-	        ResultSet rs = ps.executeQuery();
-
-	        while (rs.next()) {
-		        
+	        if (rs.next()) {
 	            Customer customer = new Customer();
 	            Location location = new Location();
-	            
-	            customer.setClientId(rs.getString("customerid"));
+
 	            customer.setSsn(rs.getString("ssn"));
+	            customer.setClientId(rs.getString("customerid"));
 	            customer.setFirstName(rs.getString("firstname"));
 	            customer.setLastName(rs.getString("lastname"));
 	            customer.setEmail(rs.getString("email"));
@@ -173,76 +220,24 @@ public class CustomerDao {
 	            location.setZipCode(rs.getInt("zipcode"));
 
 	            customer.setLocation(location);
-	            customers.add(customer);
+
+	            return customer;
 	        }
 
 	    } catch (SQLException e) {
 	        e.printStackTrace();
 	    }
 
-	    return customers;
+	    return null;
 	}
 
-
-	public Customer getHighestRevenueCustomer() {
-		/*
-		 * This method fetches the customer who generated the highest total revenue and returns it
-		 * The students code to fetch data from the database will be written here
-		 * The customer record is required to be encapsulated as a "Customer" class object
-		 */
-		String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
-				"c.customerid, c.rating, c.cardnumber, " +
-				"SUM(b.price * b.quantity) AS total_revenue " +
-				"FROM customer c " +
-				"JOIN person p ON c.customerid = p.ssn " +
-				"JOIN buy b ON c.customerid = b.customerid " +
-				"GROUP BY c.customerid " +
-				"ORDER BY total_revenue DESC " +
-				"LIMIT 1";
-
-		try (Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement ps = conn.prepareStatement(sql);
-				ResultSet rs = ps.executeQuery()) {
-
-			if (rs.next()) {
-				Customer customer = new Customer();
-				Location location = new Location();
-
-				customer.setSsn(rs.getString("ssn"));
-				customer.setClientId(rs.getString("customerid"));
-				customer.setFirstName(rs.getString("firstname"));
-				customer.setLastName(rs.getString("lastname"));
-				customer.setEmail(rs.getString("email"));
-				customer.setAddress(rs.getString("address"));
-				customer.setTelephone(rs.getString("telephone"));
-				customer.setCreditCard(rs.getString("cardnumber"));
-				customer.setRating(rs.getInt("rating"));
-	
-				location.setCity(rs.getString("city"));
-				location.setState(rs.getString("state"));
-				location.setZipCode(rs.getInt("zipcode"));
-	
-				customer.setLocation(location);
-	
-				return customer;
-			}
-
-		} catch (SQLException e) {
-			e.printStackTrace();
-		}
-
-		return null;
-	}
-
+	/*
+	 * This method fetches the customer details and returns it
+	 * customerID, which is the Customer's ID who's details have to be fetched, is given as method parameter
+	 * The students code to fetch data from the database will be written here
+	 * The customer record is required to be encapsulated as a "Customer" class object
+	 */
 	public Customer getCustomer(String customerID) {
-		/*
-		 * This method fetches the customer details and returns it
-		 * customerID, which is the Customer's ID who's details have to be fetched, is given as method parameter
-		 * The students code to fetch data from the database will be written here
-		 * The customer record is required to be encapsulated as a "Customer" class object
-		 */
-		System.out.println("AAA");
-		System.out.println(customerID);
 	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
 	                 "c.customerid, c.rating, c.cardnumber, " +
 	                 "a.accountid, a.accountcreated " +
@@ -298,32 +293,22 @@ public class CustomerDao {
 	    return null;
 	}
 
-
-	
+    /*
+     * Deletes a customer and their associated account and person records.
+     * Assumes customerID is used as the foreign key across all three tables.
+     */
 	public String deleteCustomer(String customerID) {
-		/*
-		 * This method deletes a customer returns "success" string on success, else returns "failure"
-		 * The students code to delete the data from the database will be written here
-		 * customerID, which is the Customer's ID who's details have to be deleted, is given as method parameter
-		 */
-	    String getSSNSQL = "SELECT ssn FROM customer WHERE customerid = ?";
+	    String deleteAccountSQL = "DELETE FROM account WHERE customerid = ?";
 	    String deleteCustomerSQL = "DELETE FROM customer WHERE customerid = ?";
 	    String deletePersonSQL = "DELETE FROM person WHERE ssn = ?";
 
 	    try (Connection conn = DatabaseConnection.getConnection()) {
 	        conn.setAutoCommit(false); // Start transaction
 
-	        String ssn = null;
-
-	        // Step 1: Get the SSN associated with this customer
-	        try (PreparedStatement getSSNStmt = conn.prepareStatement(getSSNSQL)) {
-	            getSSNStmt.setString(1, customerID);
-	            ResultSet rs = getSSNStmt.executeQuery();
-	            if (rs.next()) {
-	                ssn = rs.getString("ssn");
-	            } else {
-	                return "failure"; // No such customer
-	            }
+	        // Step 1: Delete from account
+	        try (PreparedStatement deleteAccountStmt = conn.prepareStatement(deleteAccountSQL)) {
+	            deleteAccountStmt.setString(1, customerID);
+	            deleteAccountStmt.executeUpdate();
 	        }
 
 	        // Step 2: Delete from customer
@@ -332,9 +317,9 @@ public class CustomerDao {
 	            deleteCustomerStmt.executeUpdate();
 	        }
 
-	        // Step 3: Delete from person
+	        // Step 3: Delete from person (ssn == customerID)
 	        try (PreparedStatement deletePersonStmt = conn.prepareStatement(deletePersonSQL)) {
-	            deletePersonStmt.setString(1, ssn);
+	            deletePersonStmt.setString(1, customerID);
 	            deletePersonStmt.executeUpdate();
 	        }
 
@@ -347,14 +332,14 @@ public class CustomerDao {
 	    }
 	}
 
-
+	/*
+	 * TODO See if it works
+	 * This method returns the Customer's ID based on the provided email address
+	 * The students code to fetch data from the database will be written here
+	 * username, which is the email address of the customer, who's ID has to be returned, is given as method parameter
+	 * The Customer's ID is required to be returned as a String
+	 */
 	public String getCustomerID(String email) {
-		/*
-		 * This method returns the Customer's ID based on the provided email address
-		 * The students code to fetch data from the database will be written here
-		 * username, which is the email address of the customer, who's ID has to be returned, is given as method parameter
-		 * The Customer's ID is required to be returned as a String
-		 */
 	    String sql = "SELECT c.customerid " +
 	                 "FROM customer c JOIN person p ON c.customerid = p.ssn " +
 	                 "WHERE p.email = ?";
@@ -451,8 +436,6 @@ public class CustomerDao {
 	}
 
 	public String editCustomer(Customer customer) {
-		System.out.println("AAA");
-		System.out.println(customer);
 		String updatePersonSQL = "UPDATE person SET firstname = ?, lastname = ?, address = ?, city = ?, state = ?, zipcode = ?, telephone = ?, email = ? WHERE ssn = ?";
 		String updateCustomerSQL = "UPDATE customer SET cardnumber = ?, rating = ? WHERE customerid = ?";
 
@@ -502,11 +485,11 @@ public class CustomerDao {
 	}
 
 
+    /*
+     * This method fetches all customer mailing details and returns them
+     * as a List of Customer objects with just name, address, email, and location fields.
+     */
 	public List<Customer> getCustomerMailingList() {
-	    /*
-	     * This method fetches all customer mailing details and returns them
-	     * as a List of Customer objects with just name, address, email, and location fields.
-	     */
 	    List<Customer> customers = new ArrayList<>();
 
 	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.address, p.city, p.state, p.zipcode, p.email " +
@@ -544,11 +527,7 @@ public class CustomerDao {
 	    return customers;
 	}
 
-
     public List<Customer> getAllCustomers() {
-        /*
-		 * This method fetches returns all customers
-		 */
         List<Customer> customers = new ArrayList<>();
 
         String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
