@@ -73,56 +73,59 @@ public class CustomerDao {
 	 * @param String searchKeyword
 	 * @return ArrayList<Customer> object
 	 */
-	public List<Customer> getCustomers() {
-		/*
-		 * This method fetches one or more customers based on the searchKeyword and returns it as an ArrayList
-		 *
-		 * The students code to fetch data from the database based on searchKeyword will be written here
-		 * Each record is required to be encapsulated as a "Customer" class object and added to the "customers" List
-		 */
-	    List<Customer> customers = new ArrayList<>();
+    public List<Customer> getCustomers() {
+        List<Customer> customers = new ArrayList<>();
 
-	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
-	                 "p.address, p.city, p.state, p.zipcode, p.telephone, " +
-	                 "c.customerid, c.rating, c.cardnumber " +
-	                 "FROM customer c " +
-	                 "JOIN person p ON c.ssn = p.ssn " +
-	                 "";
+        String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
+                     "p.address, p.city, p.state, p.zipcode, p.telephone, " +
+                     "c.customerid, c.rating, c.cardnumber, " +
+                     "a.accountcreated, a.accountid " +
+                     "FROM customer c " +
+                     "JOIN person p ON c.customerid = p.ssn " +
+                     "JOIN account a ON c.customerid = a.customerid";
 
-	    try (Connection conn = DatabaseConnection.getConnection();
-	         PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
 
-	        ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                Customer customer = new Customer();
+                Location location = new Location();
 
-	        while (rs.next()) {
-		        
-	            Customer customer = new Customer();
-	            Location location = new Location();
+                // Set person info
+                customer.setId(rs.getString("ssn"));
+                customer.setSsn(rs.getString("ssn"));
+                customer.setFirstName(rs.getString("firstname"));
+                customer.setLastName(rs.getString("lastname"));
+                customer.setEmail(rs.getString("email"));
+                customer.setAddress(rs.getString("address"));
+                customer.setTelephone(rs.getString("telephone"));
 
-	            customer.setClientId(rs.getString("customerid"));
-	            customer.setSsn(rs.getString("ssn"));
-	            customer.setFirstName(rs.getString("firstname"));
-	            customer.setLastName(rs.getString("lastname"));
-	            customer.setEmail(rs.getString("email"));
-	            customer.setAddress(rs.getString("address"));
-	            customer.setTelephone(rs.getString("telephone"));
-	            customer.setCreditCard(rs.getString("cardnumber"));
-	            customer.setRating(rs.getInt("rating"));
+                // Set customer info
+                customer.setClientId(rs.getString("customerid"));
+                customer.setCreditCard(rs.getString("cardnumber"));
+                customer.setRating(rs.getInt("rating"));
 
-	            location.setCity(rs.getString("city"));
-	            location.setState(rs.getString("state"));
-	            location.setZipCode(rs.getInt("zipcode"));
+                // Set account info
+                customer.setAccountCreationTime(rs.getString("accountcreated"));
+                customer.setAccountNumber(rs.getInt("accountid"));
 
-	            customer.setLocation(location);
-	            customers.add(customer);
-	        }
+                // Set location info
+                location.setCity(rs.getString("city"));
+                location.setState(rs.getString("state"));
+                location.setZipCode(rs.getInt("zipcode"));
+                customer.setLocation(location);
 
-	    } catch (SQLException e) {
-	        e.printStackTrace();
-	    }
+                customers.add(customer);
+            }
 
-	    return customers;
-	}    
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return customers;
+    }
+
 	
 	/**
 	 * @param String searchKeyword
@@ -282,7 +285,7 @@ public class CustomerDao {
 	            if (accountCreated != null) {
 	                customer.setAccountCreationTime(new SimpleDateFormat("yyyy-MM-dd").format(accountCreated));
 	            }
-
+	            
 	            return customer;
 	        }
 
@@ -446,13 +449,8 @@ public class CustomerDao {
 	}
 
 	public String editCustomer(Customer customer) {
-		/*
-		 * All the values of the edit customer form are encapsulated in the customer object.
-		 * These can be accessed by getter methods (see Customer class in model package).
-		 * e.g. firstName can be accessed by customer.getFirstName() method.
-		 * The sample code returns "success" by default.
-		 * You need to handle the database update and return "success" or "failure" based on result of the database update.
-		 */
+		System.out.println("AAA");
+		System.out.println(customer);
 		String updatePersonSQL = "UPDATE person SET firstname = ?, lastname = ?, address = ?, city = ?, state = ?, zipcode = ?, telephone = ?, email = ? WHERE ssn = ?";
 		String updateCustomerSQL = "UPDATE customer SET cardnumber = ?, rating = ? WHERE customerid = ?";
 
@@ -460,9 +458,9 @@ public class CustomerDao {
 			conn.setAutoCommit(false); // Start transaction
 
 			try (
-					PreparedStatement personStmt = conn.prepareStatement(updatePersonSQL);
-					PreparedStatement customerStmt = conn.prepareStatement(updateCustomerSQL)
-				) {
+				PreparedStatement personStmt = conn.prepareStatement(updatePersonSQL);
+				PreparedStatement customerStmt = conn.prepareStatement(updateCustomerSQL)
+			) {
 				// Update person
 				personStmt.setString(1, customer.getFirstName());
 				personStmt.setString(2, customer.getLastName());
@@ -478,7 +476,7 @@ public class CustomerDao {
 				// Update customer
 				customerStmt.setString(1, customer.getCreditCard());
 				customerStmt.setInt(2, customer.getRating());
-				customerStmt.setString(3, customer.getClientId()); // customerId
+				customerStmt.setString(3, customer.getSsn()); // customerID
 				int customerRows = customerStmt.executeUpdate();
 
 				if (personRows > 0 && customerRows > 0) {
@@ -501,47 +499,49 @@ public class CustomerDao {
 		}
 	}
 
-    public List<Customer> getCustomerMailingList() {
-		/*
-		 * This method fetches the all customer mailing details and returns it
-		 * The students code to fetch data from the database will be written here
-		 */
-        List<Customer> customers = new ArrayList<>();
 
-        String sql = "SELECT p.ssn, p.firstname, p.lastname, p.address, p.city, p.state, p.zipcode, p.email " +
-                     "FROM customer c " +
-                     "JOIN person p ON c.ssn = p.ssn";
+	public List<Customer> getCustomerMailingList() {
+	    /*
+	     * This method fetches all customer mailing details and returns them
+	     * as a List of Customer objects with just name, address, email, and location fields.
+	     */
+	    List<Customer> customers = new ArrayList<>();
 
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.address, p.city, p.state, p.zipcode, p.email " +
+	                 "FROM customer c " +
+	                 "JOIN person p ON c.customerid = p.ssn";
 
-            while (rs.next()) {
-                Customer customer = new Customer();
-                Location location = new Location();
+	    try (Connection conn = DatabaseConnection.getConnection();
+	         PreparedStatement ps = conn.prepareStatement(sql);
+	         ResultSet rs = ps.executeQuery()) {
 
-                customer.setSsn(rs.getString("ssn"));
-                customer.setFirstName(rs.getString("firstname"));
-                customer.setLastName(rs.getString("lastname"));
-                customer.setAddress(rs.getString("address"));
-                customer.setEmail(rs.getString("email"));
+	        while (rs.next()) {
+	            Customer customer = new Customer();
+	            Location location = new Location();
 
-                location.setCity(rs.getString("city"));
-                location.setState(rs.getString("state"));
-                location.setZipCode(rs.getInt("zipcode"));
+	            customer.setId(rs.getString("ssn"));
+	            customer.setSsn(rs.getString("ssn"));
+	            customer.setFirstName(rs.getString("firstname"));
+	            customer.setLastName(rs.getString("lastname"));
+	            customer.setAddress(rs.getString("address"));
+	            customer.setEmail(rs.getString("email"));
 
-                customer.setLocation(location);
+	            location.setCity(rs.getString("city"));
+	            location.setState(rs.getString("state"));
+	            location.setZipCode(rs.getInt("zipcode"));
 
-                customers.add(customer);
-                System.out.println(customer.getSsn());
-            }
+	            customer.setLocation(location);
 
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+	            customers.add(customer);
+	        }
 
-        return customers;
-    }
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	    }
+
+	    return customers;
+	}
+
 
     public List<Customer> getAllCustomers() {
         /*
