@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 import model.Customer;
 import model.Employee;
@@ -15,6 +16,11 @@ public class EmployeeDao {
 	/*
 	 * This class handles all the database operations related to the employee table
 	 */
+	
+  public static void main(String[] args) {
+	  EmployeeDao e = new EmployeeDao();
+      System.out.println(e.addEmployee(e.getDummyEmployee()));
+  }
 
     public Employee getDummyEmployee()
     {
@@ -26,6 +32,8 @@ public class EmployeeDao {
         location.setZipCode(11790);
 
 		/*Sample data begins*/
+        employee.setSsn("123456789");
+        employee.setLevel("Manager");
         employee.setEmail("shiyong@cs.sunysb.edu");
         employee.setFirstName("Shiyong");
         employee.setLastName("Lu");
@@ -53,7 +61,7 @@ public class EmployeeDao {
     }
 
 	public String addEmployee(Employee employee) {
-
+		
 		/*
 		 * All the values of the add employee form are encapsulated in the employee object.
 		 * These can be accessed by getter methods (see Employee class in model package).
@@ -62,11 +70,77 @@ public class EmployeeDao {
 		 * You need to handle the database insertion of the employee details and return "success" or "failure" based on result of the database insertion.
 		 */
 		
-		/*Sample data begins*/
-		return "success";
-		/*Sample data ends*/
-
-	}
+		String sqlCheckPerson = "SELECT 1 FROM Person WHERE SSN = ?";
+        String sqlPerson = "INSERT INTO Person (SSN, FirstName, LastName, Email, Address, City, State, ZipCode, Telephone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sqlEmployee = "INSERT INTO Employee (SSN, StartDate, HourlyRate, Level) VALUES (?, ?, ?, ?)";
+        
+        // Connect to the database
+        try (Connection conn = DatabaseConnection.getConnection()) {
+        	
+        	// Don't commit anything yet before it's ready to send out.
+            conn.setAutoCommit(false);
+            
+            int ssn = Integer.parseInt(employee.getSsn());
+            
+            // First check, if the person exists in the database to avoid creating another person
+            boolean personExists;
+            try (PreparedStatement psCheck = conn.prepareStatement(sqlCheckPerson)) {
+            	// change the first ? into the ssn
+                psCheck.setInt(1, ssn);
+                
+                // Sets personExist if we get a response
+                try (ResultSet rs = psCheck.executeQuery()) {
+                    personExists = rs.next();
+                }
+            }
+            
+            // Insert into the Person table only if it doesn't exist
+            if (!personExists) {
+                try (PreparedStatement psPerson = conn.prepareStatement(sqlPerson)) {
+                    psPerson.setInt(1, ssn);
+                    psPerson.setString(2, employee.getFirstName());
+                    psPerson.setString(3, employee.getLastName());
+                    psPerson.setString(4, employee.getEmail());
+                    psPerson.setString(5, employee.getAddress());
+                    
+                    Location loc = employee.getLocation();
+                    psPerson.setString(6, loc.getCity());
+                    psPerson.setString(7, loc.getState());
+                    psPerson.setInt(8, loc.getZipCode());
+                    
+                    psPerson.setString(9, employee.getTelephone());
+                    
+                    // execute the sql statement
+                    psPerson.executeUpdate();
+                }
+            }
+            
+            // Insert into Employee table, and get the auto generated key the database generated
+            try (PreparedStatement psEmp = conn.prepareStatement(sqlEmployee, Statement.RETURN_GENERATED_KEYS)) {
+                psEmp.setInt(1, ssn);
+                psEmp.setDate(2, Date.valueOf(employee.getStartDate()));
+                psEmp.setBigDecimal(3, BigDecimal.valueOf(employee.getHourlyRate()).setScale(2)); // Use BigDecimal to preserve cents and to send a precise decimal
+                psEmp.setString(4, employee.getLevel());
+                psEmp.executeUpdate();
+                
+                // Get the generated key from the database and set the ID to that number
+                try (ResultSet rs = psEmp.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        employee.setEmployeeID(String.valueOf(rs.getInt(1)));
+                    }
+                }
+            }
+            
+            // Have to manually commit the sql statements
+            conn.commit();
+            return "success";
+           
+        // Failure if connecting to the database or any of the sql statements fail because the error bubbles up
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "failure";
+        }
+    }
 
 	public String editEmployee(Employee employee) {
 		/*
