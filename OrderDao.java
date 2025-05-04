@@ -154,6 +154,7 @@ public class OrderDao {
             try (PreparedStatement psTrade = conn.prepareStatement(sqlAddTrade)) {
             	psTrade.setInt(1, orderID);
             	psTrade.setInt(2, customer.getAccountNumber());
+//            	psTrade.setInt(2, 1);
             	
             	// If the customer filled out an order themselves, employee is null
             	if (employee != null) {            		
@@ -236,9 +237,9 @@ public class OrderDao {
          */
     	List<Order> orders = new ArrayList<Order>();
     	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.DatePlaced, o.PriceType, t.StockSymbol "
-    			+ "FROM Person p JOIN Customer c ON p.SSN = c.CustomerID"
-    			+ "JOIN Account a ON c.CustomerID = AccountID"
-    			+ "JOIN Trade t ON a.AccountID = t.AccountID"
+    			+ "FROM Person p JOIN Customer c ON p.SSN = c.CustomerID "
+    			+ "JOIN Account a ON c.CustomerID = AccountID "
+    			+ "JOIN Trade t ON a.AccountID = t.AccountID "
     			+ "JOIN Orders o ON o.OrderID = t.OrderID "
     			+ "WHERE p.FirstName = ?";
     	
@@ -293,10 +294,10 @@ public class OrderDao {
 		 */
     	List<Order> orders = new ArrayList<Order>();
     	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.DatePlaced, o.PriceType, t.StockSymbol "
-    			+ "FROM Customer c JOIN Account a ON c.CustomerID = AccountID"
-    			+ "JOIN Trade t ON a.AccountID = t.AccountID"
+    			+ "FROM Customer c JOIN Account a ON c.CustomerID = AccountID "
+    			+ "JOIN Trade t ON a.AccountID = t.AccountID "
     			+ "JOIN Orders o ON o.OrderID = t.OrderID "
-    			+ "WHERE c.CustomerID = ?";
+    			+ "WHERE c.CustomerID = ? ";
     	
     	// Connect to the database, prepare the statement and get the result set
         // Don't need to fill in ? for sql or have multiple different queries so we can do it in one try statement
