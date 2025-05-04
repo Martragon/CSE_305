@@ -140,12 +140,12 @@ public class CustomerDao {
                      "c.customerid, c.rating, c.cardnumber " +
                      "FROM customer c " +
                      "JOIN person p ON c.customerid = p.ssn " +
-                     "WHERE p.email LIKE ?";  // ✅ FIXED: Move % inside setString()
+                     "WHERE p.email LIKE ?"; 
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, "%" + searchKeyword + "%");  // ✅ FIXED: LIKE '%keyword%'
+            ps.setString(1, "%" + searchKeyword + "%");
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
