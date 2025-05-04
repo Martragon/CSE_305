@@ -21,9 +21,9 @@ public class CustomerDao {
         location.setState("NY");
 
         Customer customer = new Customer();
-        customer.setId("111111111");
+        customer.setId("2");
         customer.setSsn("111111111");
-        customer.setAddress("123 Success Street");
+        customer.setAddress("321 Success Street");
         customer.setLastName("Lu");
         customer.setFirstName("Shiyong");
         customer.setEmail("shiyong@cs.sunysb.edu");
@@ -45,6 +45,7 @@ public class CustomerDao {
 
         return customers;
     }
+
 
     /**
 	 * @param String searchKeyword
@@ -76,28 +77,28 @@ public class CustomerDao {
 	            Customer customer = new Customer();
 	            Location location = new Location();
 
-//	            customer.setSsn(rs.getString("ssn"));
-//	            customer.setId(rs.getString("customerid")); // if needed
-//	            customer.setFirstName(rs.getString("firstname"));
-//	            customer.setLastName(rs.getString("lastname"));
-//	            customer.setEmail(rs.getString("email"));
-//	            customer.setAddress(rs.getString("address"));
-//	            customer.setTelephone(rs.getString("telephone"));
-//	            customer.setCreditCard(rs.getString("cardnumber"));
-//	            customer.setRating(rs.getInt("rating"));
-//
-//	            location.setCity(rs.getString("city"));
-//	            location.setState(rs.getString("state"));
-//	            location.setZipCode(rs.getInt("zipcode"));
-//
-//	            customer.setLocation(location);
+	            customer.setSsn(rs.getString("ssn"));
+	            customer.setId(rs.getString("customerid"));
+	            customer.setFirstName(rs.getString("firstname"));
+	            customer.setLastName(rs.getString("lastname"));
+	            customer.setEmail(rs.getString("email"));
+	            customer.setAddress(rs.getString("address"));
+	            customer.setTelephone(rs.getString("telephone"));
+	            customer.setCreditCard(rs.getString("cardnumber"));
+	            customer.setRating(rs.getInt("rating"));
+
+	            location.setCity(rs.getString("city"));
+	            location.setState(rs.getString("state"));
+	            location.setZipCode(rs.getInt("zipcode"));
+
+	            customer.setLocation(location);
 	            customers.add(customer);
 	        }
 
 	    } catch (SQLException e) {
 	        e.printStackTrace();
 	    }
-	    
+
 	    return getDummyCustomerList();
 	}
 
@@ -200,18 +201,52 @@ public class CustomerDao {
 		}
 	}
 	
+	
 	public String deleteCustomer(String customerID) {
-
 		/*
 		 * This method deletes a customer returns "success" string on success, else returns "failure"
 		 * The students code to delete the data from the database will be written here
 		 * customerID, which is the Customer's ID who's details have to be deleted, is given as method parameter
 		 */
+	    String getSSNSQL = "SELECT ssn FROM customer WHERE customerid = ?";
+	    String deleteCustomerSQL = "DELETE FROM customer WHERE customerid = ?";
+	    String deletePersonSQL = "DELETE FROM person WHERE ssn = ?";
 
-		/*Sample data begins*/
-		return "success";
-		/*Sample data ends*/
-		
+	    try (Connection conn = DatabaseConnection.getConnection()) {
+	        conn.setAutoCommit(false); // Start transaction
+
+	        String ssn = null;
+
+	        // Step 1: Get the SSN associated with this customer
+	        try (PreparedStatement getSSNStmt = conn.prepareStatement(getSSNSQL)) {
+	            getSSNStmt.setString(1, customerID);
+	            ResultSet rs = getSSNStmt.executeQuery();
+	            if (rs.next()) {
+	                ssn = rs.getString("ssn");
+	            } else {
+	                return "failure"; // No such customer
+	            }
+	        }
+
+	        // Step 2: Delete from customer
+	        try (PreparedStatement deleteCustomerStmt = conn.prepareStatement(deleteCustomerSQL)) {
+	            deleteCustomerStmt.setString(1, customerID);
+	            deleteCustomerStmt.executeUpdate();
+	        }
+
+	        // Step 3: Delete from person
+	        try (PreparedStatement deletePersonStmt = conn.prepareStatement(deletePersonSQL)) {
+	            deletePersonStmt.setString(1, ssn);
+	            deletePersonStmt.executeUpdate();
+	        }
+
+	        conn.commit();
+	        return "success";
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	        return "failure";
+	    }
 	}
 
 
@@ -410,14 +445,53 @@ public class CustomerDao {
         /*
 		 * This method fetches returns all customers
 		 */
-        return getDummyCustomerList();
+        List<Customer> customers = new ArrayList<>();
+
+        String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, " +
+                     "p.address, p.city, p.state, p.zipcode, p.telephone, " +
+                     "c.customerid, c.rating, c.cardnumber " +
+                     "FROM customer c " +
+                     "JOIN person p ON c.ssn = p.ssn";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                Customer customer = new Customer();
+                Location location = new Location();
+
+                customer.setSsn(rs.getString("ssn"));
+                customer.setId(rs.getString("customerid"));
+                customer.setFirstName(rs.getString("firstname"));
+                customer.setLastName(rs.getString("lastname"));
+                customer.setEmail(rs.getString("email"));
+                customer.setAddress(rs.getString("address"));
+                customer.setTelephone(rs.getString("telephone"));
+                customer.setCreditCard(rs.getString("cardnumber"));
+                customer.setRating(rs.getInt("rating"));
+
+                location.setCity(rs.getString("city"));
+                location.setState(rs.getString("state"));
+                location.setZipCode(rs.getInt("zipcode"));
+
+                customer.setLocation(location);
+                customers.add(customer);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return customers;
     }
-    
+
     public static void main(String[] args) {
         
         CustomerDao dao = new CustomerDao();
-        Customer test = dao.getCustomer("1");
-        System.out.println(test.getFirstName());
+//        Customer test = dao.getDummyCustomer();
+        System.out.println(dao.getCustomers("").toString());
+        System.out.println(dao.getDummyCustomerList().toString());
 
     }
 }
