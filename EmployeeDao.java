@@ -202,7 +202,7 @@ public class EmployeeDao {
 		
 		// Connect to the Database and prepare the sql statement
 		try (Connection conn = DatabaseConnection.getConnection(); 
-			PreparedStatement ps = conn.prepareStatement(sql)) {
+				PreparedStatement ps = conn.prepareStatement(sql)) {
 			
 			// Where EmployeeID = ?
             ps.setInt(1, Integer.parseInt(employeeID));
@@ -344,15 +344,15 @@ public class EmployeeDao {
 					employee.setAddress(rs.getString("Address"));
 					
 					Location loc = new Location();
-                    loc.setCity(rs.getString("City"));
-                    loc.setState(rs.getString("State"));
-                    loc.setZipCode(rs.getInt("ZipCode"));
-                    employee.setLocation(loc);
-                    
-                    employee.setTelephone(rs.getString("Telephone"));
-                    employee.setEmployeeID(String.valueOf(rs.getInt("EmployeeID")));
-                    employee.setStartDate(rs.getDate("StartDate").toString());
-                    employee.setHourlyRate(rs.getFloat("HourlyRate"));
+					loc.setCity(rs.getString("City"));
+					loc.setState(rs.getString("State"));
+					loc.setZipCode(rs.getInt("ZipCode"));
+					employee.setLocation(loc);
+					
+					employee.setTelephone(rs.getString("Telephone"));
+					employee.setEmployeeID(String.valueOf(rs.getInt("EmployeeID")));
+					employee.setStartDate(rs.getDate("StartDate").toString());
+					employee.setHourlyRate(rs.getFloat("HourlyRate"));
 					employee.setLevel(rs.getString("Level"));
 					
 					return employee;
