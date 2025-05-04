@@ -16,13 +16,6 @@ public class CustomerDao {
 	/*
 	 * This class handles all the database operations related to the customer table
 	 */
-
-    public static void main(String[] args) {
-        
-        CustomerDao dao = new CustomerDao();
-        System.out.println(dao.getCustomer("111111111"));
-
-    }
     
     public Customer getDummyCustomer() {
         Location location = new Location();
