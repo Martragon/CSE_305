@@ -3,7 +3,10 @@ package dao;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Date;
+import java.text.SimpleDateFormat;
 
+import model.Account;
 import model.Customer;
 import model.Location;
 
@@ -14,24 +17,43 @@ public class CustomerDao {
 	 * This class handles all the database operations related to the customer table
 	 */
 
+    public static void main(String[] args) {
+        
+        CustomerDao dao = new CustomerDao();
+        dao.addCustomer(dao.getDummyCustomer());
+
+    }
+    
     public Customer getDummyCustomer() {
         Location location = new Location();
         location.setZipCode(11790);
         location.setCity("Stony Brook");
         location.setState("NY");
 
+        Account account = new Account();
+        account.setAccountId(1);
+        try {
+            account.setCreationDate((new SimpleDateFormat("yyyy-MM-dd").parse("2020-10-10")));
+        } catch (Exception e) {
+        	e.printStackTrace();
+        }
+        
         Customer customer = new Customer();
-        customer.setClientId("2");
+        customer.setFirstName("Shiyong");
+        customer.setId("111111111");
+        customer.setLastName("Lu");
+        customer.setEmail("shiyong@cs.sunysb.edu");
         customer.setSsn("111111111");
         customer.setAddress("321 Success Street");
-        customer.setLastName("Lu");
-        customer.setFirstName("Shiyong");
-        customer.setEmail("shiyong@cs.sunysb.edu");
         customer.setLocation(location);
         customer.setTelephone("5166328959");
+        
+        customer.setClientId("111111111");
         customer.setCreditCard("1234567812345678");
         customer.setRating(1);
-
+        customer.setAccountCreationTime("2020-10-10");
+        customer.setAccountNumber(1);
+        
         return customer;
     }
     public List<Customer> getDummyCustomerList() {
@@ -348,8 +370,10 @@ public class CustomerDao {
 		String checkPersonSQL = "SELECT ssn FROM person WHERE ssn = ?";
 	    String insertPersonSQL = "INSERT INTO person (SSN, FirstName, LastName, Email, Address, City, State, Zipcode, Telephone) " +
 	                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-	    String insertCustomerSQL = "INSERT INTO customer (SSN, Rating, CardNumber) " +
+	    String insertCustomerSQL = "INSERT INTO customer (CustomerID, Rating, CardNumber) " +
 	                               "VALUES (?, ?, ?)";
+	    String insertAccountSQL = "INSERT INTO account (CustomerID, AccountCreated) " +
+	                               "VALUES (?, ?)";
 
 	    try (Connection conn = DatabaseConnection.getConnection()) {
 	        conn.setAutoCommit(false); // Start transaction
@@ -357,7 +381,8 @@ public class CustomerDao {
 	        try (
 	            PreparedStatement checkPersonStmt = conn.prepareStatement(checkPersonSQL);
 	            PreparedStatement insertPersonStmt = conn.prepareStatement(insertPersonSQL);
-	            PreparedStatement insertCustomerStmt = conn.prepareStatement(insertCustomerSQL)
+	            PreparedStatement insertCustomerStmt = conn.prepareStatement(insertCustomerSQL);
+	            PreparedStatement insertAccountStmt = conn.prepareStatement(insertAccountSQL)
 	        ) {
 	            // 1. Check if person already exists
 	            checkPersonStmt.setString(1, customer.getSsn());
@@ -380,9 +405,13 @@ public class CustomerDao {
 	            }
 
 	            // 3. Insert into customer (assume 1 customer per person)
-	            insertCustomerStmt.setString(1, customer.getSsn());
+	            insertCustomerStmt.setString(1, customer.getClientId());
 	            insertCustomerStmt.setInt(2, customer.getRating());
 	            insertCustomerStmt.setString(3, customer.getCreditCard());
+	            insertCustomerStmt.executeUpdate();
+
+	            insertAccountStmt.setString(1, customer.getClientId());
+	            insertAccountStmt.setString(2, customer.getAccountCreationTime());
 	            insertCustomerStmt.executeUpdate();
 
 	            conn.commit();
@@ -541,14 +570,5 @@ public class CustomerDao {
         }
 
         return customers;
-    }
-
-    public static void main(String[] args) {
-        
-        CustomerDao dao = new CustomerDao();
-//        Customer test = dao.getCustomer("5");
-        System.out.println(dao.getCustomer("1"));
-        System.out.println(dao.getDummyCustomer());
-
     }
 }
