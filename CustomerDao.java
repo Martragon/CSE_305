@@ -108,8 +108,26 @@ public class CustomerDao {
 		 * username, which is the email address of the customer, who's ID has to be returned, is given as method parameter
 		 * The Customer's ID is required to be returned as a String
 		 */
+	    String sql = "SELECT c.customerid " +
+	                 "FROM customer c JOIN person p ON c.ssn = p.ssn " +
+	                 "WHERE p.email = ?";
 
-		return "111-11-1111";
+	    try (Connection conn = DatabaseConnection.getConnection();
+	         PreparedStatement ps = conn.prepareStatement(sql)) {
+
+	        ps.setString(1, email);
+	        ResultSet rs = ps.executeQuery();
+
+	        if (rs.next()) {
+	            return rs.getString("customerid");
+	        } else {
+	            return null; // or "not found"
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	        return null;
+	    }
 	}
 
 
@@ -122,11 +140,60 @@ public class CustomerDao {
 		 * The sample code returns "success" by default.
 		 * You need to handle the database insertion of the customer details and return "success" or "failure" based on result of the database insertion.
 		 */
-		
-		/*Sample data begins*/
-		return "success";
-		/*Sample data ends*/
+		String checkPersonSQL = "SELECT ssn FROM person WHERE ssn = ?";
+	    String insertPersonSQL = "INSERT INTO person (SSN, FirstName, LastName, Email, Address, City, State, Zipcode, Telephone) " +
+	                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	    String insertCustomerSQL = "INSERT INTO customer (CustomerID, SSN, Rating, CardNumber) " +
+	                               "VALUES (?, ?, ?, ?)";
 
+	    try (Connection conn = DatabaseConnection.getConnection()) {
+	        conn.setAutoCommit(false); // Start transaction
+
+	        try (
+	            PreparedStatement checkPersonStmt = conn.prepareStatement(checkPersonSQL);
+	            PreparedStatement insertPersonStmt = conn.prepareStatement(insertPersonSQL);
+	            PreparedStatement insertCustomerStmt = conn.prepareStatement(insertCustomerSQL)
+	        ) {
+	            // 1. Check if person already exists
+	            checkPersonStmt.setString(1, customer.getSsn());
+	            ResultSet rs = checkPersonStmt.executeQuery();
+	            boolean personExists = rs.next();
+	            rs.close();
+
+	            // 2. Insert person only if not already in DB
+	            if (!personExists) {
+	                insertPersonStmt.setString(1, customer.getSsn());
+	                insertPersonStmt.setString(2, customer.getFirstName());
+	                insertPersonStmt.setString(3, customer.getLastName());
+	                insertPersonStmt.setString(4, customer.getEmail());
+	                insertPersonStmt.setString(5, customer.getAddress());
+	                insertPersonStmt.setString(6, customer.getLocation().getCity());
+	                insertPersonStmt.setString(7, customer.getLocation().getState());
+	                insertPersonStmt.setInt(8, customer.getLocation().getZipCode());
+	                insertPersonStmt.setString(9, customer.getTelephone());
+	                insertPersonStmt.executeUpdate();
+	            }
+
+	            // 3. Insert into customer (assume 1 customer per person)
+	            insertCustomerStmt.setString(1, customer.getClientId());
+	            insertCustomerStmt.setString(2, customer.getSsn());
+	            insertCustomerStmt.setInt(3, customer.getRating());
+	            insertCustomerStmt.setString(4, customer.getCreditCard());
+	            insertCustomerStmt.executeUpdate();
+
+	            conn.commit();
+	            return "success";
+
+	        } catch (SQLException e) {
+	            conn.rollback();
+	            e.printStackTrace();
+	            return "failure";
+	        }
+
+	    } catch (SQLException e) {
+	        e.printStackTrace();
+	        return "failure";
+	    }
 	}
 
 	public String editCustomer(Customer customer) {
@@ -159,5 +226,28 @@ public class CustomerDao {
 		 * This method fetches returns all customers
 		 */
         return getDummyCustomerList();
+    }
+    
+    public static void main(String[] args) {
+        Location location = new Location();
+        location.setZipCode(11790);
+        location.setCity("Stony Brook");
+        location.setState("NY");
+
+        Customer customer = new Customer();
+        customer.setId("115111617");
+        customer.setSsn("115112617");
+        customer.setAddress("500 Circle Rd");
+        customer.setLastName("You");
+        customer.setFirstName("Martin");
+        customer.setEmail("martin.yaou@stonybrook.edu");
+        customer.setLocation(location);
+        customer.setTelephone("7737546947");
+        customer.setCreditCard("1234567812345678");
+        customer.setRating(5);
+        
+        CustomerDao dao = new CustomerDao();
+        dao.addCustomer(customer);
+
     }
 }
