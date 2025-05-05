@@ -179,16 +179,13 @@ public class CustomerDao {
 	 * The customer record is required to be encapsulated as a "Customer" class object
 	 */
 	public Customer getHighestRevenueCustomer() {
-	    String sql = "SELECT p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
-	                 "c.customerid, c.rating, c.cardnumber, " +
-	                 "SUM(b.price * b.quantity) AS total_revenue " +
-	                 "FROM customer c " +
-	                 "JOIN person p ON c.customerid = p.ssn " +  // Link using p.ssn = c.customerid
-	                 "JOIN buy b ON c.customerid = b.customerid " +
-	                 "GROUP BY p.ssn, p.firstname, p.lastname, p.email, p.address, p.city, p.state, p.zipcode, p.telephone, " +
-	                 "c.customerid, c.rating, c.cardnumber " + // Must group by all selected columns (MySQL strict mode)
-	                 "ORDER BY total_revenue DESC " +
-	                 "LIMIT 1";
+	    String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, c.Rating, c.CardNumber, SUM(tx.Fee) AS TotalFeesPaid "
+	    		+ "FROM Customer c JOIN Person p ON c.CustomerID = p.SSN "
+	    		+ "JOIN Account a ON a.CustomerID = c.CustomerID "
+	    		+ "JOIN Trade tr ON tr.AccountID = a.AccountID "
+	    		+ "JOIN `Transaction` tx ON tx.TransactionID = tr.TransactionID "
+	    		+ "GROUP BY p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, c.Rating, c.CardNumber "
+	    		+ "ORDER BY TotalFeesPaid DESC LIMIT 1";
 
 	    try (Connection conn = DatabaseConnection.getConnection();
 	         PreparedStatement ps = conn.prepareStatement(sql);
@@ -198,19 +195,20 @@ public class CustomerDao {
 	            Customer customer = new Customer();
 	            Location location = new Location();
 
-	            customer.setSsn(rs.getString("ssn"));
-	            customer.setClientId(rs.getString("customerid"));
-	            customer.setFirstName(rs.getString("firstname"));
-	            customer.setLastName(rs.getString("lastname"));
-	            customer.setEmail(rs.getString("email"));
-	            customer.setAddress(rs.getString("address"));
-	            customer.setTelephone(rs.getString("telephone"));
-	            customer.setCreditCard(rs.getString("cardnumber"));
-	            customer.setRating(rs.getInt("rating"));
+	            customer.setSsn(rs.getString("SSN"));
+	            customer.setClientId(rs.getString("SSN"));
+	            customer.setId(rs.getString("SSN"));
+	            customer.setFirstName(rs.getString("FirstName"));
+	            customer.setLastName(rs.getString("LastName"));
+	            customer.setEmail(rs.getString("Email"));
+	            customer.setAddress(rs.getString("Address"));
+	            customer.setTelephone(rs.getString("Telephone"));
+	            customer.setCreditCard(rs.getString("Cardnumber"));
+	            customer.setRating(rs.getInt("Rating"));
 
-	            location.setCity(rs.getString("city"));
-	            location.setState(rs.getString("state"));
-	            location.setZipCode(rs.getInt("zipcode"));
+	            location.setCity(rs.getString("City"));
+	            location.setState(rs.getString("State"));
+	            location.setZipCode(rs.getInt("ZipCode"));
 
 	            customer.setLocation(location);
 
