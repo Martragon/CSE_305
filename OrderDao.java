@@ -637,16 +637,33 @@ public class OrderDao {
 		 * Use setPrice to show hidden-stop price and trailing-stop price
 		 */
         List<OrderPriceEntry> orderPriceHistory = new ArrayList<OrderPriceEntry>();
-
-        for (int i = 0; i < 10; i++) {
-            OrderPriceEntry entry = new OrderPriceEntry();
-            entry.setOrderId(orderId);
-            entry.setDate(new Date());
-            entry.setStockSymbol("aapl");
-            entry.setPricePerShare(150.0);
-            entry.setPrice(100.0);
-            orderPriceHistory.add(entry);
+        
+        String sql = "SELECT h.DateTime, h.PricePerShare, h.Stop, t.StockSymbol "
+        		+ "FROM OrderHistory h JOIN Trade t ON h.OrderID = t.OrderID "
+        		+ "WHERE h.OrderID = ?  ORDER BY h.DateTime";
+       
+        try (Connection conn = DatabaseConnection.getConnection();
+        		PreparedStatement ps = conn.prepareStatement(sql)) {
+        	
+        	ps.setInt(1, Integer.parseInt(orderId));
+        	
+        	try (ResultSet rs = ps.executeQuery()) {
+        		while (rs.next()) {
+        			OrderPriceEntry entry = new OrderPriceEntry();
+        			
+        			entry.setOrderId(orderId);
+        			entry.setDate(rs.getTimestamp("DateTime"));
+        			entry.setStockSymbol(rs.getString("StockSymbol"));
+        			entry.setPricePerShare(rs.getDouble("PricePerShare"));
+        			entry.setPrice(rs.getDouble("Stop"));
+        			orderPriceHistory.add(entry);
+        		}
+        	}
+        	
+        } catch (SQLException e) {
+        	e.printStackTrace();
         }
+        
         return orderPriceHistory;
     }
 }
