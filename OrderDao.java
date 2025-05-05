@@ -79,7 +79,7 @@ public class OrderDao {
 		 * Employee can be null, when the order is placed directly by Customer
          * */
     	
-    	String sqlAddOrder = "INSERT INTO Orders (OrderType, NumShares, Stop, Percentage, DatePlaced, PriceType) VALUES (?, ?, ?, ?, ?, ?)";
+    	String sqlAddOrder = "INSERT INTO Orders (OrderType, NumShares, Stop, Percentage, DatePlaced, PriceType) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP(), ?)";
     	String sqlAddTrade = "INSERT INTO Trade (OrderID, AccountID, BrokerID, StockSymbol) VALUES (?, ?, ?, ?)";
     	
     	boolean is_hidden_or_trailing_stop = false;
@@ -140,10 +140,7 @@ public class OrderDao {
             		psOrder.setNull(4, Types.DOUBLE);
             	}
             	
-            	// Have to convert the util.java.Date to  util.sql.Date
-            	psOrder.setDate(5, new java.sql.Date(order.getDatetime().getTime()));
-            	
-            	psOrder.setString(6, price_type);
+            	psOrder.setString(5, price_type);
             	
             	psOrder.executeUpdate();
             	
@@ -169,13 +166,12 @@ public class OrderDao {
             	double fee = totalValue * 0.05;
             	
             	int transactionID;
-            	String sqlAddTransaction = "INSERT INTO `Transaction` (Fee, DateTime, PricePerShare) VALUES (?, ?, ?)";
+            	String sqlAddTransaction = "INSERT INTO `Transaction` (Fee, DateTime, PricePerShare) VALUES (?, CURRENT_TIMESTAMP(), ?)";
             	
             	// Insert into Transaction 
             	try (PreparedStatement psTransaction = conn.prepareStatement(sqlAddTransaction, Statement.RETURN_GENERATED_KEYS)) {
             		psTransaction.setDouble(1, fee);
-            		psTransaction.setDate(2, new java.sql.Date(order.getDatetime().getTime()));
-            		psTransaction.setDouble(3, pricePerShare);
+            		psTransaction.setDouble(2, pricePerShare);
             		psTransaction.executeUpdate();
             		
             		// Get the Transaction ID to connect it to the Trade Table
@@ -218,7 +214,7 @@ public class OrderDao {
                 	
                 	// If the customer filled out an order themselves, employee is null
                 	if (employee != null) {            		
-                		psTrade.setInt(3, Integer.valueOf(employee.getEmployeeID()));
+                		psTrade.setInt(3, Integer.parseInt(employee.getEmployeeID()));
                 	} else {
                 		psTrade.setNull(3, Types.INTEGER);
                 	}
@@ -227,6 +223,18 @@ public class OrderDao {
                 	
                 	psTrade.executeUpdate();
         		}
+        		
+        		String sqlAddHistory = "INSERT INTO OrderHistory (OrderID, PricePerShare, Stop, DateTime) VALUES (?, ?, ?, CURRENT_TIMESTAMP())";
+            	
+        		// Insert into the history of the order
+    			try(PreparedStatement psHistory = conn.prepareStatement(sqlAddHistory)) {
+					psHistory.setInt(1, orderID);
+					psHistory.setDouble(2, stock.getPrice());
+					psHistory.setDouble(3, stop);
+					
+					// Insert a new row containing the history.
+					psHistory.executeUpdate();
+    			}
         		
         		// Process the orders in case it was already triggered
         		processStopOrders();
@@ -247,7 +255,7 @@ public class OrderDao {
     // Executes any pending HiddenStop and TrailingStop orders whose stop price or percentage has been triggered
     // All triggered trades incur a 5% fee and update inventory and portfolio.
     public void processStopOrders() {
-    	
+    	// System.out.println("stop orders");
     	// Get the all the data where the order is a HiddenStop/Trailing Stop and there is no TransactionID in the trade
         String sqlFetch = "SELECT o.OrderID, o.NumShares, o.Stop, t.AccountID, t.BrokerID, t.StockSymbol, o.PriceType " +
                           "FROM Orders o JOIN Trade t ON o.OrderID = t.OrderID " +
@@ -264,6 +272,8 @@ public class OrderDao {
             	
             	// Queries through all of above
                 while (rs.next()) {
+                	// System.out.println("we got something");
+                	
                     int orderId = rs.getInt("OrderID");
                     int shares = rs.getInt("NumShares");
                     double stopVal = rs.getDouble("Stop");
@@ -278,23 +288,26 @@ public class OrderDao {
                     
                     // trigger if the current price is less than or equal to the stopping value
                     boolean triggered = false;
+                    
                     if ("HiddenStop".equals(priceType) && currentPrice <= stopVal) triggered = true;
                     else if ("TrailingStop".equals(priceType) && currentPrice <= stopVal) triggered = true;
-                    	
+                    
+                    // System.out.println("triggered: " + triggered);
+                    
                     if (triggered) {
                         // Update inventory (sell adds shares back)
                         checkAndUpdateInventory(symbol, "Sell", shares, conn);
+                        // System.out.println("Inventory checked out");
 
                         double fee = currentPrice * shares * 0.05;
                         
                         int transactionID;
-                        String sqlAddTransaction = "INSERT INTO `Transaction` (Fee, DateTime, PricePerShare) VALUES (?, ?, ?)";
+                        String sqlAddTransaction = "INSERT INTO `Transaction` (Fee, DateTime, PricePerShare) VALUES (?, CURRENT_TIMESTAMP(), ?)";
                         
                         // Make a new transaction
                         try (PreparedStatement psTransaction = conn.prepareStatement(sqlAddTransaction, Statement.RETURN_GENERATED_KEYS)) {
                             psTransaction.setDouble(1, fee);
-                            psTransaction.setDate(2, new java.sql.Date(new Date().getTime()));
-                            psTransaction.setDouble(3, currentPrice);
+                            psTransaction.setDouble(2, currentPrice);
                             
                             psTransaction.executeUpdate();
                             
@@ -305,6 +318,8 @@ public class OrderDao {
                             }
                         }
                         
+                        // System.out.println("Transaction checked out");
+                        
                         // Update the Trade with the new Transaction
                         String sqlTradeUpdate = "UPDATE Trade SET TransactionID = ? WHERE OrderID = ?";
                         try (PreparedStatement psUpdate = conn.prepareStatement(sqlTradeUpdate)) {
@@ -313,8 +328,27 @@ public class OrderDao {
                             psUpdate.executeUpdate();
                         }
                         
+                        // System.out.println("Trade checked out");
+                        
                         // Update the Portfolio by amount sold
                         adjustPortfolio(accountId, symbol, "Sell", shares, conn);
+                        
+                        // System.out.println("Portfolio checked out");
+                        
+                        String sqlAddHistory = "INSERT INTO OrderHistory (OrderID, PricePerShare, Stop, DateTime) VALUES (?, ?, ?, CURRENT_TIMESTAMP())";
+                    	
+                		// Insert into the history of the order
+            			try(PreparedStatement psHistory = conn.prepareStatement(sqlAddHistory)) {
+        					psHistory.setInt(1, orderId);
+        					psHistory.setDouble(2, stock.getPrice());
+        					psHistory.setDouble(3, stopVal);
+        					
+        					// Insert a new row containing the history.
+        					psHistory.executeUpdate();
+            			}
+            			
+            			// System.out.println("History checked out");
+                        
                     }
                 }
                 
@@ -326,12 +360,18 @@ public class OrderDao {
         }
     }
     
+    public static void main(String[] args) {
+    	OrderDao d = new OrderDao();
+    	d.processStopOrders();
+    }
+    
     //Validates and updates stock inventory for a given symbol
     private void checkAndUpdateInventory(String symbol, String action, int shares, Connection conn) throws SQLException {
         // Get number of shares available shares on the most recent price-date
-        String sqlGetShares = "SELECT NumShares FROM Stock WHERE StockSymbol = ? ORDER BY PriceDate DESC LIMIT 1";
+        String sqlGetShares = "SELECT NumShares, PriceDate FROM Stock WHERE StockSymbol = ? ORDER BY PriceDate DESC LIMIT 1";
         
         int available;
+        Timestamp stock_date;
         
         try (PreparedStatement ps = conn.prepareStatement(sqlGetShares)) {
         	// WHERE StockSymbol = ?
@@ -340,26 +380,27 @@ public class OrderDao {
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) throw new SQLException("Stock symbol not found: " + symbol);
                 available = rs.getInt("NumShares");
+                stock_date = rs.getTimestamp("PriceDate");
             }
         }
         
         // Updated stock after Buying or Selling
         int updated = action.equalsIgnoreCase("Buy") ? available - shares : available + shares;
         
+        // System.out.println("Updated: " + updated);
+        
         // If there isn't enough stock, throw an exception
         if (updated < 0) throw new SQLException("Not enough stock available to buy: " + symbol);
+        
+        // System.out.println("symbol: " + symbol + "; stock_date: " + stock_date);
 
         // Update the stock row with the most recent Date
         String sqlUpdate = 
-                "UPDATE Stock s JOIN ("
-                        + " SELECT StockSymbol, MAX(PriceDate) AS maxd"
-                        + " FROM Stock WHERE StockSymbol = ?"
-                        + " GROUP BY StockSymbol"
-                        + " ) m ON s.StockSymbol = m.StockSymbol AND s.PriceDate = m.maxd"
-                        + " SET s.NumShares = ?";
+                "UPDATE Stock SET NumShares = ? WHERE StockSymbol = ? AND PriceDate = ?";
         try (PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate)) {
-        	psUpdate.setString(1, symbol);
-            psUpdate.setInt(2, updated);
+        	psUpdate.setInt(1, updated);
+        	psUpdate.setString(2, symbol);
+        	psUpdate.setTimestamp(3, stock_date);
             psUpdate.executeUpdate();
         }
     }

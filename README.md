@@ -7,3 +7,4 @@
 * In /src/main/java/resources/GetCustomersController.java removed searchKeyword from method dao.getCustomers() in line 45
 * In src/main/webapp/ShowStocks.jsp added a new line after line 17, inserting <th>Price</th>, and line 27 (previously line 26) inserted <td>${cd.price}</td>
 * Added new variable 'private String priceDate' to src/main/java/model/Stock.java with getter and setter methods
+* In /src/main/webapp/viewAddCustomerOrder.jsp, change line 21 for cd.id to cd.clientId

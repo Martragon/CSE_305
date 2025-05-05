@@ -8,9 +8,7 @@ import java.util.List;
 import model.Stock;
 
 public class StockDao {
-    public static void main(String[] args) {
-
-    }
+    
 
     public Stock getDummyStock() {
         Stock stock = new Stock();
@@ -122,6 +120,11 @@ public class StockDao {
     }
 
 
+    public static void main(String[] args) {
+    	StockDao s = new StockDao();
+    	// System.out.println(s.setStockPrice("AAPL", 162));
+    }
+    
     /* 
      * The students code to fetch data from the database will be written here
      * Perform price update of the stock symbol
@@ -129,22 +132,140 @@ public class StockDao {
      */
     public String setStockPrice(String stockSymbol, double stockPrice) {
         String sql = "INSERT INTO stock (StockSymbol, StockName, StockType, SharePrice, NumShares, PriceDate) " +
-                     "SELECT StockSymbol, StockName, StockType, ?, NumShares, CURDATE() " +
+                     "SELECT StockSymbol, StockName, StockType, ?, NumShares, CURRENT_TIMESTAMP() " +
                      "FROM stock WHERE StockSymbol = ? ORDER BY PriceDate DESC LIMIT 1";
 
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+        	
+        	// Don't commit anything yet
+        	conn.setAutoCommit(false);
+        	
+        	// Get the old price to compare for trailing and hidden stops
+        	double oldPrice = getLatestPrice(stockSymbol, conn);
+        	
+        	// System.out.println("old price: " + oldPrice);
+        	
+        	try (PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setDouble(1, stockPrice);       // New price
-            ps.setString(2, stockSymbol);      // Symbol to copy from (latest record)
-
-            int rowsInserted = ps.executeUpdate();
-            return rowsInserted > 0 ? "success" : "failure";
-
+        		ps.setDouble(1, stockPrice);       // New price
+        		ps.setString(2, stockSymbol);      // Symbol to copy from (latest record)
+        	
+        		int rowsInserted = ps.executeUpdate();
+            	if (rowsInserted == 0) throw new SQLException ("No stock record to copy for symbol: " + stockSymbol);
+        	}
+        	
+        	conn.commit();
+        	
+        	// If the stock price increases, update the hidden stops and trailing stops for their history
+        	if (stockPrice > oldPrice) {
+        		// System.out.println("1");
+        		updateHiddenStops(stockSymbol, stockPrice, conn);
+        		updateTrailingStops(stockSymbol, stockPrice, conn);
+        		
+        	// If the stock price ever lowers this is when it triggers
+        	} else if (stockPrice < oldPrice) {
+        		// System.out.println("2");
+        		OrderDao d = new OrderDao();
+        		d.processStopOrders();
+        	}
+        	
+        	// commit changes
+        	conn.commit();
+        	return "success";
         } catch (SQLException e) {
             e.printStackTrace();
             return "failure";
         }
+    }
+    
+    private double getLatestPrice(String symbol, Connection conn) throws SQLException {
+    	String sql = "SELECT SharePrice FROM Stock WHERE StockSymbol = ? ORDER BY PriceDate DESC LIMIT 1";
+    	try (PreparedStatement ps = conn.prepareStatement(sql)) {
+    		ps.setString(1, symbol);
+    		try (ResultSet rs = ps.executeQuery()) {
+    			if (rs.next()) return rs.getDouble("SharePrice");
+    		}
+    	}
+    	
+    	throw new SQLException("No price found for symbol: " + symbol);
+    }
+    
+    private void updateHiddenStops(String symbol, double newPrice, Connection conn) throws SQLException {
+    	// gets the order id and stop from the order
+    	String sqlGetOrders = "SELECT t.OrderID, o.Stop FROM Orders o JOIN Trade t ON o.OrderID = t.OrderID "
+    			+ "WHERE o.PriceType = 'HiddenStop' AND t.StockSymbol = ? AND t.TransactionID IS NULL";
+    	
+    	
+    	String sqlAddHistory = "INSERT INTO OrderHistory (OrderID, PricePerShare, Stop, DateTime) VALUES (?, ?, ?, CURRENT_TIMESTAMP())";
+    	
+    	try (PreparedStatement psOrders = conn.prepareStatement(sqlGetOrders)) {
+    		psOrders.setString(1, symbol);
+    		
+    		// Excecute the first query
+    		try (ResultSet rs = psOrders.executeQuery()) {
+    			
+    			// Prepare the second query
+    			try(PreparedStatement psHistory = conn.prepareStatement(sqlAddHistory)) {
+    				
+    				// Getting t.OrderID and o.Stop from all orders that are HiddenStops and match the symbol and has not transacted
+    				while (rs.next()) {
+    					psHistory.setInt(1, rs.getInt("OrderID"));
+    					psHistory.setDouble(2, newPrice);
+    					psHistory.setDouble(3, rs.getDouble("Stop"));
+    					
+    					// Insert a new row containing the history.
+    					psHistory.executeUpdate();
+    				}
+    			}
+    		}
+    	}
+    }
+    
+    private void updateTrailingStops(String symbol, double newPrice, Connection conn) throws SQLException {
+    	// gets the order id and stop from the order
+    	String sqlGetOrders = "SELECT t.OrderID, o.Stop, o.Percentage FROM Orders o JOIN Trade t ON  o.OrderID = t.OrderID "
+    			+ "WHERE o.PriceType = 'TrailingStop' AND t.StockSymbol = ? AND t.TransactionID IS NULL";
+    	
+    	// updates the stop value of a given order
+    	String sqlUpdateOrder = "UPDATE Orders SET Stop = ? WHERE ORDERID = ?";
+    	
+    	String sqlAddHistory = "INSERT INTO OrderHistory (OrderID, PricePerShare, Stop, DateTime) VALUES (?, ?, ?, CURRENT_TIMESTAMP())";
+    	
+    	try (PreparedStatement psOrders = conn.prepareStatement(sqlGetOrders)) {
+    		psOrders.setString(1, symbol);
+    		
+    		// Excecute the first query
+    		try (ResultSet rs = psOrders.executeQuery()) {
+    			
+    			// Prepare the second and third query
+    			try(PreparedStatement psUpdateOrders = conn.prepareStatement(sqlUpdateOrder);
+					PreparedStatement psHistory = conn.prepareStatement(sqlAddHistory)) {
+    				
+    				// Getting t.OrderID and o.Stop from all orders that are HiddenStops and match the symbol and has not transacted
+    				while (rs.next()) {
+    					
+    					int orderID = rs.getInt("OrderID");
+    					double percentage = rs.getDouble("Percentage");
+    					double newStop = newPrice * (1.0 - (percentage/100.0));
+    					
+    					// Update the Orders.Stop
+    					psUpdateOrders.setDouble(1, newStop);
+    					psUpdateOrders.setInt(2, orderID);
+    					psUpdateOrders.executeUpdate();
+    					
+    					// Record the history
+    					psHistory.setInt(1, orderID);
+    					psHistory.setDouble(2, newPrice);
+    					psHistory.setDouble(3, newStop);
+    					
+    					// Insert a new row containing the history.
+    					psHistory.executeUpdate();
+    				}
+    			}
+    		}
+    	}
+    	
+    	
     }
 
 
