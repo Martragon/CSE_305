@@ -326,7 +326,6 @@ public class CustomerDao {
 	}
 
 	/*
-	 * TODO See if it works
 	 * This method returns the Customer's ID based on the provided email address
 	 * The students code to fetch data from the database will be written here
 	 * username, which is the email address of the customer, who's ID has to be returned, is given as method parameter
