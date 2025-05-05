@@ -33,17 +33,49 @@ public class StockDao {
         return stocks;
     }
 
-	/* TODO
+	/*
 	 * The students code to fetch data from the database will be written here
 	 * Query to fetch details of all the stocks has to be implemented
 	 * Return list of actively traded stocks
 	 * go into transactions, spit the most recently traded
 	 */
     public List<Stock> getActivelyTradedStocks() {
+        List<Stock> stocks = new ArrayList<>();
 
-        return getDummyStocks();
+        String sql = 
+            "SELECT DISTINCT s.StockSymbol, s.StockName, s.StockType, s.SharePrice, s.NumShares, s.PriceDate " +
+            "FROM stock s " +
+            "JOIN trade t ON s.StockSymbol = t.StockSymbol " +
+            "JOIN transaction tr ON t.TransactionID = tr.TransactionID " +
+            "WHERE tr.DateTime = ( " +
+            "   SELECT MAX(tr2.DateTime) " +
+            "   FROM transaction tr2 " +
+            "   JOIN trade t2 ON tr2.TransactionID = t2.TransactionID " +
+            "   WHERE t2.StockSymbol = t.StockSymbol " +
+            ")";
 
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                Stock stock = new Stock();
+                stock.setSymbol(rs.getString("StockSymbol"));
+                stock.setName(rs.getString("StockName"));
+                stock.setType(rs.getString("StockType"));
+                stock.setPrice(rs.getDouble("SharePrice"));
+                stock.setNumShares(rs.getInt("NumShares"));
+                stock.setDate(rs.getString("PriceDate"));
+                stocks.add(stock);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return stocks;
     }
+
 
 	/*
 	 * The students code to fetch data from the database will be written here
@@ -201,7 +233,7 @@ public class StockDao {
     	try (PreparedStatement psOrders = conn.prepareStatement(sqlGetOrders)) {
     		psOrders.setString(1, symbol);
     		
-    		// Excecute the first query
+    		// Execute the first query
     		try (ResultSet rs = psOrders.executeQuery()) {
     			
     			// Prepare the second query
@@ -234,7 +266,7 @@ public class StockDao {
     	try (PreparedStatement psOrders = conn.prepareStatement(sqlGetOrders)) {
     		psOrders.setString(1, symbol);
     		
-    		// Excecute the first query
+    		// Execute the first query
     		try (ResultSet rs = psOrders.executeQuery()) {
     			
     			// Prepare the second and third query
@@ -264,32 +296,105 @@ public class StockDao {
     			}
     		}
     	}
-    	
-    	
     }
 
 
-	/* TODO
+	/*
 	 * The students code to fetch data from the database will be written here
 	 * Get list of bestseller stocks
 	 * which orders buys the most, but also counting employee
 	 */
-	public List<Stock> getOverallBestsellers() {
+    public List<Stock> getOverallBestsellers() {
+        List<Stock> stocks = new ArrayList<>();
 
-		return getDummyStocks();
+        String sql = 
+            "SELECT s.StockSymbol, s.StockName, s.StockType, s.NumShares, s.SharePrice, " +
+            "       SUM(o.NumShares) AS TotalBought " +
+            "FROM orders o " +
+            "JOIN trade t ON o.OrderID = t.OrderID " +
+            "JOIN ( " +
+            "    SELECT s1.* " +
+            "    FROM stock s1 " +
+            "    JOIN ( " +
+            "        SELECT StockSymbol, MAX(PriceDate) AS MaxDate " +
+            "        FROM stock GROUP BY StockSymbol " +
+            "    ) latest ON s1.StockSymbol = latest.StockSymbol AND s1.PriceDate = latest.MaxDate " +
+            ") s ON t.StockSymbol = s.StockSymbol " +
+            "WHERE o.OrderType = 'Buy' " +
+            "GROUP BY s.StockSymbol, s.StockName, s.StockType, s.NumShares, s.SharePrice " +
+            "ORDER BY TotalBought DESC";
 
-	}
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
 
-	/* TODO
+            while (rs.next()) {
+                Stock stock = new Stock();
+                stock.setSymbol(rs.getString("StockSymbol"));
+                stock.setName(rs.getString("StockName"));
+                stock.setType(rs.getString("StockType"));
+                stock.setNumShares(rs.getInt("NumShares"));
+                stock.setPrice(rs.getDouble("SharePrice"));
+                stocks.add(stock);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return stocks;
+    }
+
+
+
+	/* 
 	 * The students code to fetch data from the database will be written here.
 	 * Get list of customer bestseller stocks
 	 * which orders buy the most, doesn't matter if transaction is null, just customer
 	 */
     public List<Stock> getCustomerBestsellers(String customerID) {
+        List<Stock> stocks = new ArrayList<>();
 
-        return getDummyStocks();
+        String sql = 
+        	    "SELECT s.StockSymbol, s.StockName, s.StockType, s.NumShares, s.SharePrice " +
+        	    "FROM stock s " +
+        	    "JOIN ( " +
+        	    "    SELECT StockSymbol, MAX(PriceDate) AS MaxDate " +
+        	    "    FROM stock " +
+        	    "    GROUP BY StockSymbol " +
+        	    ") AS latest ON s.StockSymbol = latest.StockSymbol AND s.PriceDate = latest.MaxDate " +
+        	    "JOIN stockporfolio sp ON sp.StockSymbol = s.StockSymbol " +
+        	    "JOIN account a ON a.AccountID = sp.AccountID " +
+        	    "WHERE a.CustomerID = ? " +
+        	    "ORDER BY sp.NumShares DESC " +
+        	    "LIMIT 10;";
 
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, customerID);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                Stock stock = new Stock();
+                stock.setSymbol(rs.getString("StockSymbol"));
+                stock.setName(rs.getString("StockName"));
+                stock.setType(rs.getString("StockType"));
+                stock.setNumShares(rs.getInt("NumShares"));
+                stock.setPrice(rs.getDouble("SharePrice"));
+
+                stocks.add(stock);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return stocks;
     }
+
+
+
     
 	/*
 	 * The students code to fetch data from the database will be written here
@@ -377,7 +482,7 @@ public class StockDao {
         return stocks;
     }
 
-	/* TODO
+	/*
 	 * The students code to fetch data from the database will be written here
 	 * Return stock suggestions for given "customerId"
 	 * SIMILAR STOCK TYPES
