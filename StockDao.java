@@ -377,7 +377,6 @@ public class StockDao {
         return stocks;
     }
 
-    
 	/* TODO
 	 * The students code to fetch data from the database will be written here
 	 * Return stock suggestions for given "customerId"
@@ -387,26 +386,21 @@ public class StockDao {
         List<Stock> suggestions = new ArrayList<>();
 
         String sql = 
-            "SELECT s.StockSymbol, s.StockName, s.StockType, s.SharePrice, s.NumShares, s.PriceDate " +
-            "FROM stock s " +
-            "JOIN ( " +
-            "   SELECT b.StockSymbol, MAX(s.PriceDate) AS LatestDate, COUNT(*) as Popularity " +
-            "   FROM buy b " +
-            "   JOIN stock s ON b.StockSymbol = s.StockSymbol " +
-            "   WHERE b.CustomerID != ? " +
-            "   GROUP BY b.StockSymbol " +
-            "   ORDER BY Popularity DESC " +
-            "   LIMIT 10 " +
-            ") popular ON s.StockSymbol = popular.StockSymbol AND s.PriceDate = popular.LatestDate " +
-            "WHERE s.StockSymbol NOT IN ( " +
-            "   SELECT DISTINCT StockSymbol FROM buy WHERE CustomerID = ? " +
-            ")";
+            "SELECT s.StockSymbol, s.StockName, s.StockType, s.SharePrice, s.NumShares, s.PriceDate "
+            + "FROM Stock AS s JOIN ("
+            + "SELECT DISTINCT  st.StockType "
+            + "FROM Stock AS st JOIN StockPorfolio AS sp ON sp.StockSymbol = st.StockSymbol "
+            + "JOIN Account AS a ON a.AccountID = sp.AccountID "
+            + "WHERE a.CustomerID = ?"
+            + ") AS custTypes ON s.StockType = custTypes.StockType JOIN ("
+            + " SELECT StockSymbol,  MAX(PriceDate) AS LatestDate FROM Stock GROUP BY StockSymbol"
+            + ") AS latest ON s.StockSymbol = latest.StockSymbol AND s.PriceDate = latest.LatestDate "
+            + "ORDER BY s.StockType, s.StockSymbol";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, customerID); // for excluding this customer's buys
-            ps.setString(2, customerID); // for filtering suggestions
+            ps.setString(1, customerID);
 
             ResultSet rs = ps.executeQuery();
 
