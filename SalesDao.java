@@ -34,11 +34,49 @@ public class SalesDao {
 		 * The students code to fetch data from the database will be written here
 		 * Query to get sales report for a particular month and year
 		 */
-
-        return getDummyRevenueItems();
-
+    	List<RevenueItem> revenueItems = new ArrayList<RevenueItem>();
+    	
+    	// Select what we need from Transaction, Order and Trade for Revenue Items where the month and year are equal
+    	String sql = "SELECT o.NumShares, tx.PricePerShare, tx.DateTime, tr.StockSymbol, tr.AccountID, tx.Fee "
+    			+ "FROM `Transaction` AS tx "
+    			+ "JOIN Trade AS tr ON tx.TransactionID = tr.TransactionID "
+    			+ "JOIN Orders AS o ON  tr.OrderID = o.OrderID "
+    			+ "WHERE MONTH(tx.DateTime) = ? AND YEAR(tx.DateTime) = ?";
+    	
+    	try (Connection conn = DatabaseConnection.getConnection();
+    			PreparedStatement ps = conn.prepareStatement(sql)){
+    		
+    		ps.setString(1, month);
+    		ps.setString(2, year);
+    		
+    		try (ResultSet rs = ps.executeQuery()) {
+    			while (rs.next()) {
+    				
+    				// Create the revenue item for each row we get
+    				RevenueItem item = new RevenueItem();
+    				
+    				item.setNumShares(rs.getInt("NumShares"));
+    				item.setPricePerShare(rs.getDouble("PricePerShare"));
+    				item.setDate(rs.getTimestamp("DateTime"));
+    				item.setStockSymbol(rs.getString("StockSymbol"));
+    				item.setAccountId(rs.getString("AccountID"));
+    				item.setAmount(rs.getDouble("Fee"));
+    				
+    				revenueItems.add(item);
+    			}
+    		}
+    				
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+    	
+        return revenueItems;
     }
 
+    public static void main(String[] args) {
+    	SalesDao s = new SalesDao();
+    	System.out.println(s.getSalesReport("5", "2025").get(0).getNumShares());
+    }
 
 	/*
 	 * The students code to fetch data from the database will be written here
