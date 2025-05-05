@@ -79,14 +79,16 @@ public class OrderDao {
 		 * Employee can be null, when the order is placed directly by Customer
          * */
     	
-    	String sqlAddOrder = "INSERT INTO Orders (OrderType, NumShares, Stop, DatePlaced, PriceType) VALUES (?, ?, ?, ?, ?)";
+    	String sqlAddOrder = "INSERT INTO Orders (OrderType, NumShares, Stop, Percentage, DatePlaced, PriceType) VALUES (?, ?, ?, ?, ?, ?)";
     	String sqlAddTrade = "INSERT INTO Trade (OrderID, AccountID, BrokerID, StockSymbol) VALUES (?, ?, ?, ?)";
     	
     	boolean is_hidden_or_trailing_stop = false;
-    	String buy_or_sell = null;
+    	String buy_or_sell;
     	double stop = 0;
-    	int orderID = -1;
-    	String price_type = null;
+    	double percentage = 0;
+    	int orderID;
+    	String price_type;
+    	int shares = order.getNumShares();
     	
     	// Get the information from the order object
     	if (order instanceof HiddenStopOrder) {
@@ -102,7 +104,8 @@ public class OrderDao {
     		TrailingStopOrder tso = (TrailingStopOrder) order;
     		is_hidden_or_trailing_stop = true;
     		buy_or_sell = "Sell";
-    		stop = tso.getPercentage();
+    		stop = stock.getPrice() * (1.0 - (tso.getPercentage() / 100.0));
+    		percentage = tso.getPercentage();
     		price_type = "TrailingStop";
     		
     	} else if (order instanceof MarketOnCloseOrder) {
@@ -123,6 +126,7 @@ public class OrderDao {
     		// Don't commit anything yet before it's ready to send out.
             conn.setAutoCommit(false);
             
+            // Insert into Orders and get the OrderID
             try (PreparedStatement psOrder = conn.prepareStatement(sqlAddOrder, Statement.RETURN_GENERATED_KEYS)) {
             	psOrder.setString(1, buy_or_sell);
             	psOrder.setInt(2, order.getNumShares());
@@ -130,14 +134,15 @@ public class OrderDao {
             	// Set the Stop parameter if it is hidden or trailing, null otherwise
             	if (is_hidden_or_trailing_stop) {
             		psOrder.setDouble(3, stop);
+            		psOrder.setDouble(4, percentage);
             	} else {
             		psOrder.setNull(3, Types.DOUBLE);
             	}
             	
             	// Have to convert the util.java.Date to  util.sql.Date
-            	psOrder.setDate(4, new java.sql.Date(order.getDatetime().getTime()));
+            	psOrder.setDate(5, new java.sql.Date(order.getDatetime().getTime()));
             	
-            	psOrder.setString(5, price_type);
+            	psOrder.setString(6, price_type);
             	
             	psOrder.executeUpdate();
             	
@@ -146,36 +151,263 @@ public class OrderDao {
             		if (rs.next()) {
             			orderID = rs.getInt(1);
             		} else {
-            			throw new Exception("No ID generated");
+            			throw new Exception("No Order ID generated");
             		}
             	}
             }
             
-            try (PreparedStatement psTrade = conn.prepareStatement(sqlAddTrade)) {
-            	psTrade.setInt(1, orderID);
-            	psTrade.setInt(2, customer.getAccountNumber());
-//            	psTrade.setInt(2, 1);
+            // Market and MarketOnClose orders execute immediately
+            if (!is_hidden_or_trailing_stop) {
             	
-            	// If the customer filled out an order themselves, employee is null
-            	if (employee != null) {            		
-            		psTrade.setInt(3, Integer.valueOf(employee.getEmployeeID()));
-            	} else {
-            		psTrade.setNull(3, Types.INTEGER);
+            	// Check first if we're able to buy the stock from the inventory. If so, update the stock inventory
+            	checkAndUpdateInventory(stock.getSymbol(), buy_or_sell, shares, conn);
+            	
+            	// Calculate the fee
+            	double pricePerShare = stock.getPrice();
+            	double totalValue = pricePerShare * shares;
+            	double fee = totalValue * 0.05;
+            	
+            	int transactionID;
+            	String sqlAddTransaction = "INSERT INTO `Transaction` (Fee, DateTime, PricePerShare) VALUES (?, ?, ?)";
+            	
+            	// Insert into Transaction 
+            	try (PreparedStatement psTransaction = conn.prepareStatement(sqlAddTransaction, Statement.RETURN_GENERATED_KEYS)) {
+            		psTransaction.setDouble(1, fee);
+            		psTransaction.setDate(2, new java.sql.Date(order.getDatetime().getTime()));
+            		psTransaction.setDouble(3, pricePerShare);
+            		psTransaction.executeUpdate();
+            		
+            		// Get the Transaction ID to connect it to the Trade Table
+            		try (ResultSet rs = psTransaction.getGeneratedKeys()) {
+            			if (rs.next()) {
+            				transactionID = rs.getInt(1);
+            			} else {
+            				throw new Exception("No Transaction ID Generated");
+            			}
+            		}
             	}
             	
-            	psTrade.setString(4, stock.getSymbol());
+            	String sqlAddTradeWithTransaction = "INSERT INTO Trade (OrderID, AccountID, BrokerID, StockSymbol, TransactionID) VALUES (?, ?, ?, ?, ?)";
+            	try (PreparedStatement psTradeTransaction = conn.prepareStatement(sqlAddTradeWithTransaction)) {
+                	psTradeTransaction.setInt(1, orderID);
+                	psTradeTransaction.setInt(2, customer.getAccountNumber());
+//                	psTrade.setInt(2, 1);
+                	
+                	// If the customer filled out an order themselves, employee is null
+                	if (employee != null) {            		
+                		psTradeTransaction.setInt(3, Integer.valueOf(employee.getEmployeeID()));
+                	} else {
+                		psTradeTransaction.setNull(3, Types.INTEGER);
+                	}
+                	
+                	psTradeTransaction.setString(4, stock.getSymbol());
+                	psTradeTransaction.setInt(5, transactionID);
+                	
+                	psTradeTransaction.executeUpdate();
+                }
             	
-            	psTrade.executeUpdate();
-            }
-            
-            // Have to manually commit the sql statements
-	        conn.commit();
-	        return "success";
+            	// Add or Subtract from the portfolio
+            	adjustPortfolio(customer.getAccountNumber(), stock.getSymbol(), buy_or_sell, shares, conn);
+            	
+        	} else { // This is a HiddenStop or Trailing Stop and won't be executed yet
+        		try (PreparedStatement psTrade = conn.prepareStatement(sqlAddTrade)) {
+                	psTrade.setInt(1, orderID);
+                	psTrade.setInt(2, customer.getAccountNumber());
+//                	psTrade.setInt(2, 1);
+                	
+                	// If the customer filled out an order themselves, employee is null
+                	if (employee != null) {            		
+                		psTrade.setInt(3, Integer.valueOf(employee.getEmployeeID()));
+                	} else {
+                		psTrade.setNull(3, Types.INTEGER);
+                	}
+                	
+                	psTrade.setString(4, stock.getSymbol());
+                	
+                	psTrade.executeUpdate();
+        		}
+        		
+        		// Process the orders in case it was already triggered
+        		processStopOrders();
+        	}
+        
+        // Have to manually commit the sql statements
+        conn.commit();
+        return "success";
     	
      // Failure if connecting to the database or any of the sql statements fail because the error bubbles up	
     	} catch (Exception e) {
 			e.printStackTrace();
 			return "failure";
+        }
+    }
+    
+
+    // Executes any pending HiddenStop and TrailingStop orders whose stop price or percentage has been triggered
+    // All triggered trades incur a 5% fee and update inventory and portfolio.
+    public void processStopOrders() {
+    	
+    	// Get the all the data where the order is a HiddenStop/Trailing Stop and there is no TransactionID in the trade
+        String sqlFetch = "SELECT o.OrderID, o.NumShares, o.Stop, t.AccountID, t.BrokerID, t.StockSymbol, o.PriceType " +
+                          "FROM Orders o JOIN Trade t ON o.OrderID = t.OrderID " +
+                          "WHERE o.PriceType IN ('HiddenStop','TrailingStop') AND t.TransactionID IS NULL";
+        
+        try (Connection conn = DatabaseConnection.getConnection()) {
+        	
+        	// Don't do anything yet
+            conn.setAutoCommit(false);
+            
+            // Go through with the query
+            try (PreparedStatement ps = conn.prepareStatement(sqlFetch);
+                 ResultSet rs = ps.executeQuery()) {
+            	
+            	// Queries through all of above
+                while (rs.next()) {
+                    int orderId = rs.getInt("OrderID");
+                    int shares = rs.getInt("NumShares");
+                    double stopVal = rs.getDouble("Stop");
+                    int accountId = rs.getInt("AccountID");
+                    String symbol = rs.getString("StockSymbol");
+                    String priceType = rs.getString("PriceType");
+                    
+                    // Get the current price of a given stock symbol
+                    StockDao s = new StockDao();
+                    Stock stock = s.getStockBySymbol(symbol);
+                    double currentPrice = stock.getPrice();
+                    
+                    // trigger if the current price is less than or equal to the stopping value
+                    boolean triggered = false;
+                    if ("HiddenStop".equals(priceType) && currentPrice <= stopVal) triggered = true;
+                    else if ("TrailingStop".equals(priceType) && currentPrice <= stopVal) triggered = true;
+                    	
+                    if (triggered) {
+                        // Update inventory (sell adds shares back)
+                        checkAndUpdateInventory(symbol, "Sell", shares, conn);
+
+                        double fee = currentPrice * shares * 0.05;
+                        
+                        int transactionID;
+                        String sqlAddTransaction = "INSERT INTO `Transaction` (Fee, DateTime, PricePerShare) VALUES (?, ?, ?)";
+                        
+                        // Make a new transaction
+                        try (PreparedStatement psTransaction = conn.prepareStatement(sqlAddTransaction, Statement.RETURN_GENERATED_KEYS)) {
+                            psTransaction.setDouble(1, fee);
+                            psTransaction.setDate(2, new java.sql.Date(new Date().getTime()));
+                            psTransaction.setDouble(3, currentPrice);
+                            
+                            psTransaction.executeUpdate();
+                            
+                            // Get the transactionID to put into the Trade
+                            try (ResultSet rk = psTransaction.getGeneratedKeys()) {
+                                if (rk.next()) transactionID = rk.getInt(1);
+                                else throw new SQLException("Failed to retrieve TransactionID");
+                            }
+                        }
+                        
+                        // Update the Trade with the new Transaction
+                        String sqlTradeUpdate = "UPDATE Trade SET TransactionID = ? WHERE OrderID = ?";
+                        try (PreparedStatement psUpdate = conn.prepareStatement(sqlTradeUpdate)) {
+                            psUpdate.setInt(1, transactionID);
+                            psUpdate.setInt(2, orderId);
+                            psUpdate.executeUpdate();
+                        }
+                        
+                        // Update the Portfolio by amount sold
+                        adjustPortfolio(accountId, symbol, "Sell", shares, conn);
+                    }
+                }
+                
+                // Go through with all actions
+                conn.commit();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    //Validates and updates stock inventory for a given symbol
+    private void checkAndUpdateInventory(String symbol, String action, int shares, Connection conn) throws SQLException {
+        // Get number of shares available shares on the most recent price-date
+        String sqlGetShares = "SELECT NumShares FROM Stock WHERE StockSymbol = ? ORDER BY PriceDate DESC LIMIT 1";
+        
+        int available;
+        
+        try (PreparedStatement ps = conn.prepareStatement(sqlGetShares)) {
+        	// WHERE StockSymbol = ?
+            ps.setString(1, symbol);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) throw new SQLException("Stock symbol not found: " + symbol);
+                available = rs.getInt("NumShares");
+            }
+        }
+        
+        // Updated stock after Buying or Selling
+        int updated = action.equalsIgnoreCase("Buy") ? available - shares : available + shares;
+        
+        // If there isn't enough stock, throw an exception
+        if (updated < 0) throw new SQLException("Not enough stock available to buy: " + symbol);
+
+        // Update the stock row with the most recent Date
+        String sqlUpdate = "UPDATE Stock SET NumShares = ? WHERE StockSymbol = ? AND PriceDate = (SELECT MAX(PriceDate) FROM Stock WHERE StockSymbol = ?)";
+        try (PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate)) {
+            psUpdate.setInt(1, updated);
+            psUpdate.setString(2, symbol);
+            psUpdate.setString(3, symbol);
+            psUpdate.executeUpdate();
+        }
+    }
+    
+    // Adjust portfolio holdings after a trade for a given account and stock symbol
+    private void adjustPortfolio(int accountId, String symbol, String action, int shares, Connection conn) throws SQLException {
+        String selectPortfolio = "SELECT NumShares FROM StockPorfolio WHERE AccountID = ? AND StockSymbol = ?";
+        String updatePortfolio = "UPDATE StockPorfolio SET NumShares = ? WHERE AccountID = ? AND StockSymbol = ?";
+        String insertPortfolio = "INSERT INTO StockPorfolio (AccountID, StockSymbol, NumShares) VALUES (?, ?, ?)";
+        
+        // Get the number of shares from the stock portfolio. Update if it's already there, Insert if not
+        try (PreparedStatement ps = conn.prepareStatement(selectPortfolio)) {
+        	
+            ps.setInt(1, accountId);
+            ps.setString(2, symbol);
+            
+            try (ResultSet rs = ps.executeQuery()) {
+            	
+            	// If we get a result (The stock is already in the portfolio)
+                if (rs.next()) {
+                    int current = rs.getInt("NumShares");
+                    
+                    // Updated stock after Buying or Selling
+                    int updated = "Buy".equalsIgnoreCase(action) ? current + shares : current - shares;
+                    
+                    // If there isn't enough stock, throw an exception
+                    if (updated < 0) throw new SQLException("Insufficient shares to sell");
+                    
+                    // Update the portfolio because we're able to
+                    try (PreparedStatement psUp = conn.prepareStatement(updatePortfolio)) {
+                        psUp.setInt(1, updated);
+                        psUp.setInt(2, accountId);
+                        psUp.setString(3, symbol);
+                        psUp.executeUpdate();
+                    }
+                   
+                // The stock is not in the protfolio
+                } else {
+                	
+                	// If we're trying to buy
+                    if ("Buy".equalsIgnoreCase(action)) {
+                    	// Insert the number of stocks  to buy
+                        try (PreparedStatement psIn = conn.prepareStatement(insertPortfolio)) {
+                            psIn.setInt(1, accountId);
+                            psIn.setString(2, symbol);
+                            psIn.setInt(3, shares);
+                            psIn.executeUpdate();
+                        }
+                        
+                    } else { // If we're trying to sell a stock that the account doesn't have
+                        throw new SQLException("No shares to sell for account: " + accountId + ", symbol: " + symbol);
+                    }
+                }
+            }
         }
     }
 
@@ -185,7 +417,7 @@ public class OrderDao {
          */
     	
     	List<Order> orders = new ArrayList<Order>();
-    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.DatePlaced, o.PriceType, t.StockSymbol FROM Orders o JOIN Trade t ON o.OrderID = t.OrderID WHERE t.StockSymbol = ?";
+    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.Percentage, o.DatePlaced, o.PriceType, t.StockSymbol FROM Orders o JOIN Trade t ON o.OrderID = t.OrderID WHERE t.StockSymbol = ?";
     	
     	// Connect to the database, prepare the statement and get the result set
         // Don't need to fill in ? for sql or have multiple different queries so we can do it in one try statement
@@ -207,7 +439,7 @@ public class OrderDao {
 	            		((HiddenStopOrder)order).setPricePerShare(rs.getDouble("Stop"));
 	            	} else if (priceType.equals("TrailingStop")) {
 	            		order = new TrailingStopOrder();
-	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Stop"));
+	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Percentage"));
 	            	} else if (priceType.equals("MarketOnClose")) {
 	            		order = new MarketOnCloseOrder();
 	            		((MarketOnCloseOrder)order).setBuySellType(rs.getString("OrderType"));
@@ -236,7 +468,7 @@ public class OrderDao {
 		 * Student code to get orders by customer name
          */
     	List<Order> orders = new ArrayList<Order>();
-    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.DatePlaced, o.PriceType, t.StockSymbol "
+    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.Percentage, o.DatePlaced, o.PriceType, t.StockSymbol "
     			+ "FROM Person p JOIN Customer c ON p.SSN = c.CustomerID "
     			+ "JOIN Account a ON c.CustomerID = AccountID "
     			+ "JOIN Trade t ON a.AccountID = t.AccountID "
@@ -263,7 +495,7 @@ public class OrderDao {
 	            		((HiddenStopOrder)order).setPricePerShare(rs.getDouble("Stop"));
 	            	} else if (priceType.equals("TrailingStop")) {
 	            		order = new TrailingStopOrder();
-	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Stop"));
+	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Percentage"));
 	            	} else if (priceType.equals("MarketOnClose")) {
 	            		order = new MarketOnCloseOrder();
 	            		((MarketOnCloseOrder)order).setBuySellType(rs.getString("OrderType"));
@@ -293,7 +525,7 @@ public class OrderDao {
 		 * Show orders for given customerId
 		 */
     	List<Order> orders = new ArrayList<Order>();
-    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.DatePlaced, o.PriceType, t.StockSymbol "
+    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.Percentage, o.DatePlaced, o.PriceType, t.StockSymbol "
     			+ "FROM Customer c JOIN Account a ON c.CustomerID = AccountID "
     			+ "JOIN Trade t ON a.AccountID = t.AccountID "
     			+ "JOIN Orders o ON o.OrderID = t.OrderID "
@@ -319,7 +551,7 @@ public class OrderDao {
 	            		((HiddenStopOrder)order).setPricePerShare(rs.getDouble("Stop"));
 	            	} else if (priceType.equals("TrailingStop")) {
 	            		order = new TrailingStopOrder();
-	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Stop"));
+	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Percentage"));
 	            	} else if (priceType.equals("MarketOnClose")) {
 	            		order = new MarketOnCloseOrder();
 	            		((MarketOnCloseOrder)order).setBuySellType(rs.getString("OrderType"));
