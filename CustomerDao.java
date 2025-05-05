@@ -289,29 +289,22 @@ public class CustomerDao {
      * Assumes customerID is used as the foreign key across all three tables.
      */
 	public String deleteCustomer(String customerID) {
-	    String deleteAccountSQL = "DELETE FROM account WHERE customerid = ?";
-	    String deleteCustomerSQL = "DELETE FROM customer WHERE customerid = ?";
-	    String deletePersonSQL = "DELETE FROM person WHERE ssn = ?";
+	    String sqlDeleteCustomer = "DELETE FROM Customer WHERE CustomerID = ?";
+	    String sqlDeletePerson = "DELETE FROM Person WHERE SSN = ?";
 
 	    try (Connection conn = DatabaseConnection.getConnection()) {
 	        conn.setAutoCommit(false); // Start transaction
 
-	        // Step 1: Delete from account
-	        try (PreparedStatement deleteAccountStmt = conn.prepareStatement(deleteAccountSQL)) {
-	            deleteAccountStmt.setString(1, customerID);
-	            deleteAccountStmt.executeUpdate();
+	        // Delete Customer
+	        try (PreparedStatement psDelCustomer = conn.prepareStatement(sqlDeleteCustomer)) {
+	        	psDelCustomer.setString(1, customerID);
+	        	psDelCustomer.executeUpdate();
 	        }
 
-	        // Step 2: Delete from customer
-	        try (PreparedStatement deleteCustomerStmt = conn.prepareStatement(deleteCustomerSQL)) {
-	            deleteCustomerStmt.setString(1, customerID);
-	            deleteCustomerStmt.executeUpdate();
-	        }
-
-	        // Step 3: Delete from person (ssn == customerID)
-	        try (PreparedStatement deletePersonStmt = conn.prepareStatement(deletePersonSQL)) {
-	            deletePersonStmt.setString(1, customerID);
-	            deletePersonStmt.executeUpdate();
+	        // Delete Person (ssn == customerID)
+	        try (PreparedStatement psDelPerson = conn.prepareStatement(sqlDeletePerson)) {
+	        	psDelPerson.setString(1, customerID);
+	        	psDelPerson.executeUpdate();
 	        }
 
 	        conn.commit();
