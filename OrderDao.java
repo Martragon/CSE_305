@@ -137,6 +137,7 @@ public class OrderDao {
             		psOrder.setDouble(4, percentage);
             	} else {
             		psOrder.setNull(3, Types.DOUBLE);
+            		psOrder.setNull(4, Types.DOUBLE);
             	}
             	
             	// Have to convert the util.java.Date to  util.sql.Date
@@ -349,11 +350,16 @@ public class OrderDao {
         if (updated < 0) throw new SQLException("Not enough stock available to buy: " + symbol);
 
         // Update the stock row with the most recent Date
-        String sqlUpdate = "UPDATE Stock SET NumShares = ? WHERE StockSymbol = ? AND PriceDate = (SELECT MAX(PriceDate) FROM Stock WHERE StockSymbol = ?)";
+        String sqlUpdate = 
+                "UPDATE Stock s JOIN ("
+                        + " SELECT StockSymbol, MAX(PriceDate) AS maxd"
+                        + " FROM Stock WHERE StockSymbol = ?"
+                        + " GROUP BY StockSymbol"
+                        + " ) m ON s.StockSymbol = m.StockSymbol AND s.PriceDate = m.maxd"
+                        + " SET s.NumShares = ?";
         try (PreparedStatement psUpdate = conn.prepareStatement(sqlUpdate)) {
-            psUpdate.setInt(1, updated);
-            psUpdate.setString(2, symbol);
-            psUpdate.setString(3, symbol);
+        	psUpdate.setString(1, symbol);
+            psUpdate.setInt(2, updated);
             psUpdate.executeUpdate();
         }
     }
@@ -525,8 +531,8 @@ public class OrderDao {
 		 * Show orders for given customerId
 		 */
     	List<Order> orders = new ArrayList<Order>();
-    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.Percentage, o.DatePlaced, o.PriceType, t.StockSymbol "
-    			+ "FROM Customer c JOIN Account a ON c.CustomerID = AccountID "
+    	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.Percentage, o.DatePlaced, o.PriceType "
+    			+ "FROM Customer c JOIN Account a ON c.CustomerID = a.CustomerID "
     			+ "JOIN Trade t ON a.AccountID = t.AccountID "
     			+ "JOIN Orders o ON o.OrderID = t.OrderID "
     			+ "WHERE c.CustomerID = ? ";
@@ -539,26 +545,34 @@ public class OrderDao {
         	ps.setString(1, customerId);
         	
             try (ResultSet rs = ps.executeQuery()) {
-        	
 	        	// while there are rows to be read, keep on creating the employee object and add it to the list
 	            while (rs.next()) {
+
 	            	Order order;
 	            	
 	            	String priceType = rs.getString("PriceType");
 	            	
-	            	if (priceType.equals("HiddenStop")) {
-	            		order = new HiddenStopOrder();
-	            		((HiddenStopOrder)order).setPricePerShare(rs.getDouble("Stop"));
-	            	} else if (priceType.equals("TrailingStop")) {
-	            		order = new TrailingStopOrder();
-	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Percentage"));
-	            	} else if (priceType.equals("MarketOnClose")) {
-	            		order = new MarketOnCloseOrder();
-	            		((MarketOnCloseOrder)order).setBuySellType(rs.getString("OrderType"));
-	            	} else {
-	            		order = new MarketOrder();
-	            		((MarketOrder)order).setBuySellType(rs.getString("OrderType"));
-	            	}
+	            	switch (priceType) {
+	                    case "HiddenStop":
+	                        HiddenStopOrder hso = new HiddenStopOrder();
+	                        hso.setPricePerShare(rs.getDouble("Stop"));
+	                        order = hso;
+	                        break;
+	                    case "TrailingStop":
+	                        TrailingStopOrder tso = new TrailingStopOrder();
+	                        tso.setPercentage(rs.getDouble("Percentage"));
+	                        order = tso;
+	                        break;
+	                    case "MarketOnClose":
+	                        MarketOnCloseOrder moco = new MarketOnCloseOrder();
+	                        moco.setBuySellType(rs.getString("OrderType"));
+	                        order = moco;
+	                        break;
+	                    default:
+	                        MarketOrder mo = new MarketOrder();
+	                        mo.setBuySellType(rs.getString("OrderType"));
+	                        order = mo;
+	            		}
 	            	
 	            	order.setDatetime(rs.getDate("DatePlaced"));
 	            	order.setId(rs.getInt("OrderID"));
@@ -575,9 +589,7 @@ public class OrderDao {
     	return orders;
     }
 
-
     public List<OrderPriceEntry> getOrderPriceHistory(String orderId) {
-
         /*
 		 * The students code to fetch data from the database will be written here
 		 * Query to view price history of hidden stop order or trailing stop order
