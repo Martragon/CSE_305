@@ -145,6 +145,7 @@ public class CustomerDao {
                     Customer customer = new Customer();
                     Location location = new Location();
 
+                    customer.setId(rs.getString("ssn"));
                     customer.setClientId(rs.getString("customerid"));
                     customer.setSsn(rs.getString("ssn"));
                     customer.setFirstName(rs.getString("firstname"));
@@ -527,6 +528,7 @@ public class CustomerDao {
                 Customer customer = new Customer();
                 Location location = new Location();
 
+                customer.setId(rs.getString("ssn"));
                 customer.setSsn(rs.getString("ssn"));
                 customer.setClientId(rs.getString("customerid"));
                 customer.setFirstName(rs.getString("firstname"));
