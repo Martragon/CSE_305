@@ -378,7 +378,53 @@ public class EmployeeDao {
 		 * The record is required to be encapsulated as a "Employee" class object
 		 */
 		
-		return getDummyEmployee();
+		String sql = "SELECT p.SSN, p.FirstName, p.LastName, p.Email, p.Address, p.City, p.State, p.ZipCode, p.Telephone, e.StartDate, e.HourlyRate, e.Level "
+				+ "FROM Employee e JOIN Person p ON e.EmployeeID = p.SSN "
+				+ "JOIN ("
+				+ "SELECT tr.BrokerID, SUM(tx.Fee) AS TotalFees FROM Trade tr JOIN `Transaction` tx ON tr.TransactionID = tx.transactionID "
+				+ "GROUP BY tr.BrokerID) AS rev";
+		
+		Employee employee = null;
+		
+		// Connect to the database, prepare the statement and get the result set
+        // Don't need to fill in ? for sql or have multiple different queries so we can do it in one try statement
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+        	
+        	// while there are rows to be read, keep on creating the employee object and add it to the list
+            if (rs.next()) {
+            	
+                employee = new Employee();
+            	
+                employee.setSsn(rs.getString("SSN"));
+                employee.setId(rs.getString("SSN"));
+                employee.setFirstName(rs.getString("FirstName"));
+                employee.setLastName(rs.getString("LastName"));
+                employee.setEmail(rs.getString("Email"));
+                employee.setAddress(rs.getString("Address"));
+                
+                Location loc = new Location();
+                loc.setCity(rs.getString("City"));
+                loc.setState(rs.getString("State"));
+                loc.setZipCode(rs.getInt("ZipCode"));
+                employee.setLocation(loc);
+                
+                employee.setTelephone(rs.getString("Telephone"));
+                employee.setEmployeeID(rs.getString("SSN"));
+                employee.setStartDate(rs.getDate("StartDate").toString());
+                employee.setHourlyRate(rs.getFloat("HourlyRate"));
+                employee.setLevel(rs.getString("Level"));
+
+            } else {
+            	throw new SQLException("Could not find highest revenue employee");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        
+        return employee;
 	}
 
 	public String getEmployeeID(String username) {
