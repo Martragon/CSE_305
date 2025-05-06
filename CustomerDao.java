@@ -174,7 +174,7 @@ public class CustomerDao {
 
 
 	/*
-	 * TODO See if it works
+	 *
 	 * This method fetches the customer who generated the highest total revenue and returns it
 	 * The students code to fetch data from the database will be written here
 	 * The customer record is required to be encapsulated as a "Customer" class object
