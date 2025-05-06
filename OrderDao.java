@@ -481,20 +481,28 @@ public class OrderDao {
 	            	
 	            	String priceType = rs.getString("PriceType");
 	            	
-	            	if (priceType.equals("HiddenStop")) {
-	            		order = new HiddenStopOrder();
-	            		((HiddenStopOrder)order).setPricePerShare(rs.getDouble("Stop"));
-	            	} else if (priceType.equals("TrailingStop")) {
-	            		order = new TrailingStopOrder();
-	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Percentage"));
-	            	} else if (priceType.equals("MarketOnClose")) {
-	            		order = new MarketOnCloseOrder();
-	            		((MarketOnCloseOrder)order).setBuySellType(rs.getString("OrderType"));
-	            	} else {
-	            		order = new MarketOrder();
-	            		((MarketOrder)order).setBuySellType(rs.getString("OrderType"));
-	            	}
-	            	
+	            	switch (priceType) {
+                    case "HiddenStop":
+                        HiddenStopOrder hso = new HiddenStopOrder();
+                        hso.setPricePerShare(rs.getDouble("Stop"));
+                        order = hso;
+                        break;
+                    case "TrailingStop":
+                        TrailingStopOrder tso = new TrailingStopOrder();
+                        tso.setPercentage(rs.getDouble("Percentage"));
+                        order = tso;
+                        break;
+                    case "MarketOnClose":
+                        MarketOnCloseOrder moco = new MarketOnCloseOrder();
+                        moco.setBuySellType(rs.getString("OrderType"));
+                        order = moco;
+                        break;
+                    default:
+                        MarketOrder mo = new MarketOrder();
+                        mo.setBuySellType(rs.getString("OrderType"));
+                        order = mo;
+            		}
+            	
 	            	order.setDatetime(rs.getDate("DatePlaced"));
 	            	order.setId(rs.getInt("OrderID"));
 	            	order.setNumShares(rs.getInt("NumShares"));
@@ -516,8 +524,7 @@ public class OrderDao {
          */
     	List<Order> orders = new ArrayList<Order>();
     	String sql = "SELECT o.OrderID, o.OrderType, o.NumShares, o.Stop, o.Percentage, o.DatePlaced, o.PriceType, t.StockSymbol "
-    			+ "FROM Person p JOIN Customer c ON p.SSN = c.CustomerID "
-    			+ "JOIN Account a ON c.CustomerID = AccountID "
+    			+ "FROM Person p JOIN Account a ON p.SSN = a.CustomerID "
     			+ "JOIN Trade t ON a.AccountID = t.AccountID "
     			+ "JOIN Orders o ON o.OrderID = t.OrderID "
     			+ "WHERE p.FirstName = ?";
@@ -537,24 +544,32 @@ public class OrderDao {
 	            	
 	            	String priceType = rs.getString("PriceType");
 	            	
-	            	if (priceType.equals("HiddenStop")) {
-	            		order = new HiddenStopOrder();
-	            		((HiddenStopOrder)order).setPricePerShare(rs.getDouble("Stop"));
-	            	} else if (priceType.equals("TrailingStop")) {
-	            		order = new TrailingStopOrder();
-	            		((TrailingStopOrder)order).setPercentage(rs.getDouble("Percentage"));
-	            	} else if (priceType.equals("MarketOnClose")) {
-	            		order = new MarketOnCloseOrder();
-	            		((MarketOnCloseOrder)order).setBuySellType(rs.getString("OrderType"));
-	            	} else {
-	            		order = new MarketOrder();
-	            		((MarketOrder)order).setBuySellType(rs.getString("OrderType"));
-	            	}
-	            	
+	            	switch (priceType) {
+                    case "HiddenStop":
+                        HiddenStopOrder hso = new HiddenStopOrder();
+                        hso.setPricePerShare(rs.getDouble("Stop"));
+                        order = hso;
+                        break;
+                    case "TrailingStop":
+                        TrailingStopOrder tso = new TrailingStopOrder();
+                        tso.setPercentage(rs.getDouble("Percentage"));
+                        order = tso;
+                        break;
+                    case "MarketOnClose":
+                        MarketOnCloseOrder moco = new MarketOnCloseOrder();
+                        moco.setBuySellType(rs.getString("OrderType"));
+                        order = moco;
+                        break;
+                    default:
+                        MarketOrder mo = new MarketOrder();
+                        mo.setBuySellType(rs.getString("OrderType"));
+                        order = mo;
+            		}
+            	
 	            	order.setDatetime(rs.getDate("DatePlaced"));
 	            	order.setId(rs.getInt("OrderID"));
 	            	order.setNumShares(rs.getInt("NumShares"));
-	            	
+		            	
 	            	orders.add(order);
 	            }
             }
