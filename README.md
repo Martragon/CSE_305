@@ -9,10 +9,10 @@
 * Added new variable 'private String priceDate' to /src/main/java/model/Stock.java with getter and setter methods
 * Changed values to begin 2000 end 2030 in /src/main/webapp/viewSalesReport.jsp to make it easier to select stock summary
 * Changed doGet() from /src/main/java/resources/GetSalesReportController.java to
-* 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+  		protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		String year = request.getParameter("year");
 		String month = request.getParameter("month");
-
 		SalesDao dao = new SalesDao();
 		List<RevenueItem> items = dao.getSalesReport(month, year);
 
@@ -21,4 +21,4 @@
 
 		RequestDispatcher rd = request.getRequestDispatcher("showSalesReport.jsp");
 		rd.forward(request, response);
-	}
+		}
